@@ -1,0 +1,29 @@
+# Render Blueprint – deploy backend (fehrist-api) from this repo.
+# Usage: Dashboard → New → Blueprint → connect this repo.
+# On first create, set: DATABASE_URL (postgresql+asyncpg://...), BETTER_AUTH_SECRET, CORS_ORIGINS (e.g. https://fehrist.vercel.app).
+
+services:
+  - type: web
+    name: fehrist-api
+    runtime: python
+    rootDir: backend
+    plan: free
+
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - backend/**
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

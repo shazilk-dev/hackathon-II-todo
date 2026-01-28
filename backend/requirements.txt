@@ -1,0 +1,11 @@
+# For Render (and other pip-based deploys). Generated from pyproject.toml.
+# Development: use `uv sync` locally.
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+sqlmodel>=0.0.14
+asyncpg>=0.29.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+alembic>=1.13.0
