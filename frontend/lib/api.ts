@@ -72,12 +72,27 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+export type PriorityType = "low" | "medium" | "high" | "critical";
+export type StatusType = "backlog" | "in_progress" | "blocked" | "done";
+
+export interface Tag {
+  id: number;
+  user_id: string;
+  name: string;
+  color: string;  // hex color (#RRGGBB)
+  created_at: string;
+}
+
 export interface Task {
   id: number;
   user_id: string;
   title: string;
   description: string | null;
   completed: boolean;
+  due_date: string | null;  // ISO 8601
+  priority: PriorityType;
+  status: StatusType;
+  tags: Tag[];
   created_at: string;
   updated_at: string;
 }
@@ -87,14 +102,30 @@ export interface TasksResponse {
   count: number;
 }
 
+export interface TagsResponse {
+  tags: Tag[];
+  count: number;
+}
+
+export interface CreateTagData {
+  name: string;
+  color: string;
+}
+
 export interface CreateTaskData {
   title: string;
   description?: string;
+  due_date?: string | null;
+  priority?: PriorityType;
+  status?: StatusType;
 }
 
 export interface UpdateTaskData {
   title?: string;
   description?: string;
+  due_date?: string | null;
+  priority?: PriorityType;
+  status?: StatusType;
 }
 
 export const api = {
@@ -206,6 +237,85 @@ export const api = {
       });
 
       return handleResponse<Task>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Change task status
+  async changeStatus(userId: string, taskId: number, status: StatusType): Promise<Task> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ status })
+      });
+
+      return handleResponse<Task>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Get all tags for user
+  async getTags(userId: string): Promise<TagsResponse> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/tags`, {
+        headers,
+        cache: 'no-store'
+      });
+
+      return handleResponse<TagsResponse>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Create a new tag
+  async createTag(userId: string, data: CreateTagData): Promise<Tag> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/tags`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      return handleResponse<Tag>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Update task tags
+  async updateTaskTags(userId: string, taskId: number, tagIds: number[]): Promise<{ message: string }> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}/tags`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ tag_ids: tagIds })
+      });
+
+      return handleResponse<{ message: string }>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);

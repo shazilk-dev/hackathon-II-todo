@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { api, Task } from "@/lib/api";
+import { api, Task, PriorityType, StatusType, Tag } from "@/lib/api";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
+import { TagInput } from "./TagInput";
 
 interface TaskFormProps {
   userId: string;
@@ -12,6 +13,10 @@ interface TaskFormProps {
 export function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState<PriorityType>("medium");
+  const [status, setStatus] = useState<StatusType>("backlog");
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -27,11 +32,28 @@ export function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
     try {
       const task = await api.createTask(userId, {
         title: title.trim(),
-        description: description.trim() || undefined
+        description: description.trim() || undefined,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        priority: priority,
+        status: status
       });
-      onTaskCreated(task);
+
+      // Add tags if any selected
+      if (selectedTags.length > 0) {
+        await api.updateTaskTags(userId, task.id, selectedTags.map(t => t.id));
+        // Refresh task to get tags
+        const updatedTask = await api.getTask(userId, task.id);
+        onTaskCreated(updatedTask);
+      } else {
+        onTaskCreated(task);
+      }
+
       setTitle("");
       setDescription("");
+      setDueDate("");
+      setPriority("medium");
+      setStatus("backlog");
+      setSelectedTags([]);
       setIsExpanded(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task");
@@ -87,16 +109,72 @@ export function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
 
       {/* Expanded Form */}
       <div className={`overflow-hidden transition-all duration-300 ${
-        isExpanded ? "max-h-[120px] opacity-100 mt-2.5" : "max-h-0 opacity-0"
+        isExpanded ? "max-h-[400px] opacity-100 mt-2.5" : "max-h-0 opacity-0"
       }`}>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add a description (optional)"
-          className="w-full px-3 py-2 text-sm bg-surface-base border border-border-subtle rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-action-primary/10 resize-none transition-all placeholder:text-content-tertiary"
-          rows={2}
-          aria-label="Task description"
-        />
+        <div className="space-y-2.5">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description (optional)"
+            className="w-full px-3 py-2 text-sm bg-surface-base border border-border-subtle rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-action-primary/10 resize-none transition-all placeholder:text-content-tertiary"
+            rows={2}
+            aria-label="Task description"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label htmlFor="priority" className="block text-[10px] font-medium text-content-tertiary mb-1">
+                Priority
+              </label>
+              <select
+                id="priority"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as PriorityType)}
+                className="w-full h-9 px-2.5 text-sm bg-surface-base border border-border-subtle rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-action-primary/10 transition-all"
+                aria-label="Task priority"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="status" className="block text-[10px] font-medium text-content-tertiary mb-1">
+                Status
+              </label>
+              <select
+                id="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as StatusType)}
+                className="w-full h-9 px-2.5 text-sm bg-surface-base border border-border-subtle rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-action-primary/10 transition-all"
+                aria-label="Task status"
+              >
+                <option value="backlog">Backlog</option>
+                <option value="in_progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="dueDate" className="block text-[10px] font-medium text-content-tertiary mb-1">
+                Due Date
+              </label>
+              <input
+                id="dueDate"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full h-9 px-2.5 text-sm bg-surface-base border border-border-subtle rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-action-primary/10 transition-all"
+                aria-label="Task due date"
+              />
+            </div>
+          </div>
+          <TagInput
+            userId={userId}
+            selectedTags={selectedTags}
+            onTagsChange={setSelectedTags}
+          />
+        </div>
       </div>
 
       {/* Submit Button */}
