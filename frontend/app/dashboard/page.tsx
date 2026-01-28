@@ -6,11 +6,14 @@ import { TaskForm } from "@/components/tasks/TaskForm";
 import { ListView } from "@/components/tasks/ListView";
 import { CalendarView } from "@/components/tasks/CalendarView";
 import { KanbanView } from "@/components/tasks/KanbanView";
+import { GroupedTaskList } from "@/components/tasks/GroupedTaskList";
+import { FocusMode } from "@/components/tasks/FocusMode";
+import { ProgressCard } from "@/components/tasks/ProgressCard";
 import { ViewSwitcher, ViewType } from "@/components/tasks/ViewSwitcher";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { api, Task } from "@/lib/api";
-import { Loader2, ListTodo, Clock, CheckCircle2 } from "lucide-react";
+import { Loader2, ListTodo, Clock, CheckCircle2, Focus } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed";
 
@@ -29,6 +32,7 @@ function DashboardContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [focusTask, setFocusTask] = useState<Task | null>(null);
 
   const userId = session?.user?.id;
 
@@ -125,6 +129,21 @@ function DashboardContent() {
     return null;
   }
 
+  // Show focus mode if task selected
+  if (focusTask && userId) {
+    return (
+      <FocusMode
+        task={focusTask}
+        userId={userId}
+        onExit={() => setFocusTask(null)}
+        onTaskComplete={(updatedTask) => {
+          handleTaskUpdated(updatedTask);
+          setFocusTask(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface-base">
       <Header />
@@ -143,92 +162,114 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Task Form (only show in list and kanban view) */}
-          {(currentView === "list" || currentView === "kanban") && userId && (
-            <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
-          )}
+        {/* Two-column layout for larger screens */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Main content area */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Task Form (only show in list, grouped, and kanban view) */}
+            {(currentView === "list" || currentView === "grouped" || currentView === "kanban") && userId && (
+              <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
+            )}
 
-          {/* Stats & Filter Row (only in list view) */}
-          {currentView === "list" && (
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-content-tertiary">Total</span>
-                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">
-                    {tasks.length}
-                  </span>
+            {/* Stats & Filter Row (only in list view) */}
+            {currentView === "list" && (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-content-tertiary">Total</span>
+                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">
+                      {tasks.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-content-tertiary">Pending</span>
+                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">
+                      {pendingCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-content-tertiary">Done</span>
+                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">
+                      {completedCount}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-content-tertiary">Pending</span>
-                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">
-                    {pendingCount}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-content-tertiary">Done</span>
-                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">
-                    {completedCount}
-                  </span>
+
+                <div className="flex items-center gap-1 p-0.5 bg-surface-base rounded-lg border border-border-subtle">
+                  {(Object.keys(filterConfig) as StatusFilter[]).map((status) => {
+                    const { label, icon: Icon } = filterConfig[status];
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setFilter(status)}
+                        className={`flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-md transition-all ${
+                          filter === status
+                            ? "bg-surface-raised text-content-primary shadow-sm"
+                            : "text-content-tertiary hover:text-content-secondary"
+                        }`}
+                        aria-pressed={filter === status}
+                      >
+                        <Icon className="w-3 h-3" />
+                        <span className="hidden sm:inline">{label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+            )}
 
-              <div className="flex items-center gap-1 p-0.5 bg-surface-base rounded-lg border border-border-subtle">
-                {(Object.keys(filterConfig) as StatusFilter[]).map((status) => {
-                  const { label, icon: Icon } = filterConfig[status];
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setFilter(status)}
-                      className={`flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-md transition-all ${
-                        filter === status
-                          ? "bg-surface-raised text-content-primary shadow-sm"
-                          : "text-content-tertiary hover:text-content-secondary"
-                      }`}
-                      aria-pressed={filter === status}
-                    >
-                      <Icon className="w-3 h-3" />
-                      <span className="hidden sm:inline">{label}</span>
-                    </button>
-                  );
-                })}
+            {/* Views */}
+            {userId && (
+              <>
+                {currentView === "list" && (
+                  <ListView
+                    tasks={tasks}
+                    userId={userId}
+                    isLoading={isLoading}
+                    error={error}
+                    onUpdate={handleTaskUpdated}
+                    onDelete={handleTaskDeleted}
+                  />
+                )}
+
+                {currentView === "grouped" && (
+                  <GroupedTaskList
+                    tasks={tasks}
+                    userId={userId}
+                    onUpdate={handleTaskUpdated}
+                    onDelete={handleTaskDeleted}
+                  />
+                )}
+
+                {currentView === "calendar" && (
+                  <CalendarView
+                    tasks={tasks}
+                    userId={userId}
+                    onDateClick={handleDateClick}
+                    onTaskClick={handleTaskClick}
+                  />
+                )}
+
+                {currentView === "kanban" && (
+                  <KanbanView
+                    tasks={tasks}
+                    userId={userId}
+                    onStatusChange={handleStatusChange}
+                    onUpdate={handleTaskUpdated}
+                    onDelete={handleTaskDeleted}
+                  />
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Sidebar - Progress Card (only on larger screens) */}
+          {userId && (
+            <div className="hidden lg:block">
+              <div className="sticky top-20">
+                <ProgressCard userId={userId} />
               </div>
             </div>
-          )}
-
-          {/* Views */}
-          {userId && (
-            <>
-              {currentView === "list" && (
-                <ListView
-                  tasks={tasks}
-                  userId={userId}
-                  isLoading={isLoading}
-                  error={error}
-                  onUpdate={handleTaskUpdated}
-                  onDelete={handleTaskDeleted}
-                />
-              )}
-
-              {currentView === "calendar" && (
-                <CalendarView
-                  tasks={tasks}
-                  userId={userId}
-                  onDateClick={handleDateClick}
-                  onTaskClick={handleTaskClick}
-                />
-              )}
-
-              {currentView === "kanban" && (
-                <KanbanView
-                  tasks={tasks}
-                  userId={userId}
-                  onStatusChange={handleStatusChange}
-                  onUpdate={handleTaskUpdated}
-                  onDelete={handleTaskDeleted}
-                />
-              )}
-            </>
           )}
         </div>
       </main>

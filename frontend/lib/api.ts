@@ -128,6 +128,62 @@ export interface UpdateTaskData {
   status?: StatusType;
 }
 
+// Focus Session types
+export type DurationType = 5 | 15 | 25;
+
+export interface FocusSession {
+  id: number;
+  user_id: string;
+  task_id: number;
+  started_at: string;  // ISO 8601
+  ended_at: string | null;  // ISO 8601 or null if still running
+  duration_minutes: DurationType;
+  completed: boolean;
+  notes: string | null;
+}
+
+export interface CreateFocusSessionData {
+  task_id: number;
+  duration_minutes: DurationType;
+}
+
+export interface UpdateFocusSessionData {
+  completed?: boolean;
+  notes?: string;
+}
+
+// Statistics types
+export interface DayStatistics {
+  date: string;  // YYYY-MM-DD
+  completed_count: number;
+}
+
+export interface WeeklyStatistics {
+  week_start: string;  // YYYY-MM-DD
+  days: DayStatistics[];
+  total: number;
+}
+
+export interface StreakInfo {
+  current_streak: number;
+  longest_streak: number;
+  last_completion_date: string | null;  // YYYY-MM-DD
+}
+
+export interface TaskStatistics {
+  total_tasks: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  completion_rate: number;  // 0-100
+  total_completions: number;
+}
+
+export interface UserStatistics {
+  statistics: TaskStatistics;
+  streak: StreakInfo;
+  weekly: WeeklyStatistics;
+}
+
 export const api = {
   // Get all tasks for user
   async getTasks(userId: string, status: "all" | "pending" | "completed" = "all"): Promise<TasksResponse> {
@@ -316,6 +372,115 @@ export const api = {
       });
 
       return handleResponse<{ message: string }>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Statistics API
+
+  // Get user statistics
+  async getStatistics(userId: string): Promise<UserStatistics> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/statistics`, {
+        headers,
+        cache: 'no-store'
+      });
+
+      return handleResponse<UserStatistics>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Focus Sessions API
+
+  // Start a focus session
+  async startFocusSession(userId: string, data: CreateFocusSessionData): Promise<FocusSession> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/focus-sessions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      return handleResponse<FocusSession>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // End a focus session
+  async endFocusSession(userId: string, sessionId: number, data: UpdateFocusSessionData): Promise<FocusSession> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/focus-sessions/${sessionId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      return handleResponse<FocusSession>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Get active focus session
+  async getActiveFocusSession(userId: string): Promise<FocusSession | null> {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(`${API_URL}/api/${userId}/focus-sessions/active`, {
+        headers,
+        cache: 'no-store'
+      });
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      return handleResponse<FocusSession>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Get focus sessions
+  async getFocusSessions(userId: string, taskId?: number, limit?: number): Promise<FocusSession[]> {
+    try {
+      const headers = await getAuthHeaders();
+      const url = new URL(`${API_URL}/api/${userId}/focus-sessions`);
+
+      if (taskId) url.searchParams.set("task_id", taskId.toString());
+      if (limit) url.searchParams.set("limit", limit.toString());
+
+      const response = await fetch(url.toString(), {
+        headers,
+        cache: 'no-store'
+      });
+
+      return handleResponse<FocusSession[]>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);

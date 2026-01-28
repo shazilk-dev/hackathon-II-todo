@@ -329,6 +329,9 @@ class TaskService:
         # Get existing task (raises TaskNotFoundError if not found)
         task = await TaskService.get_task(session, user_id, task_id)
 
+        # Track old status to detect completion
+        old_completed = task.completed
+
         # Toggle completion and sync with status
         task.completed = not task.completed
         task.status = "done" if task.completed else "backlog"
@@ -337,6 +340,11 @@ class TaskService:
         session.add(task)
         await session.commit()
         await session.refresh(task)
+
+        # Log completion if task was just marked as complete
+        if task.completed and not old_completed:
+            from src.services.statistics_service import StatisticsService
+            await StatisticsService.log_completion(session, user_id, task_id)
 
         return task
 
@@ -365,6 +373,9 @@ class TaskService:
         # Get existing task (raises TaskNotFoundError if not found)
         task = await TaskService.get_task(session, user_id, task_id)
 
+        # Track old status to detect completion
+        old_status = task.status
+
         # Update status and sync completed field
         task.status = new_status
         task.completed = (new_status == "done")
@@ -373,5 +384,10 @@ class TaskService:
         session.add(task)
         await session.commit()
         await session.refresh(task)
+
+        # Log completion if task was just marked as done
+        if new_status == "done" and old_status != "done":
+            from src.services.statistics_service import StatisticsService
+            await StatisticsService.log_completion(session, user_id, task_id)
 
         return task

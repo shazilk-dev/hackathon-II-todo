@@ -4,8 +4,9 @@ Models package.
 Import all models here to ensure they're registered with SQLModel metadata.
 """
 
+from src.models.completion import FocusSession, TaskCompletion
 from src.models.tag import Tag, TaskTag
 from src.models.task import Task
 from src.models.user import User
 
-__all__ = ["Task", "User", "Tag", "TaskTag"]
+__all__ = ["Task", "User", "Tag", "TaskTag", "TaskCompletion", "FocusSession"]

@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.middleware.jwt_auth import jwt_auth_middleware
-from src.api.routers import tags, tasks
+from src.api.routers import statistics, tags, tasks
 from src.config import settings
 
 
@@ -60,6 +60,9 @@ app.include_router(tasks.router)
 
 # Include tags router
 app.include_router(tags.router)
+
+# Include statistics router
+app.include_router(statistics.router)
 
 
 # Root endpoint

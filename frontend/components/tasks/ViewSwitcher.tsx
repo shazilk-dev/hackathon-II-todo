@@ -1,8 +1,8 @@
 "use client";
 
-import { List, Calendar, LayoutGrid } from "lucide-react";
+import { List, Calendar, LayoutGrid, Layers } from "lucide-react";
 
-export type ViewType = "list" | "calendar" | "kanban";
+export type ViewType = "list" | "calendar" | "kanban" | "grouped";
 
 interface ViewSwitcherProps {
   currentView: ViewType;
@@ -12,6 +12,7 @@ interface ViewSwitcherProps {
 export function ViewSwitcher({ currentView, onViewChange }: ViewSwitcherProps) {
   const views: { type: ViewType; icon: typeof List; label: string }[] = [
     { type: "list", icon: List, label: "List" },
+    { type: "grouped", icon: Layers, label: "Grouped" },
     { type: "calendar", icon: Calendar, label: "Calendar" },
     { type: "kanban", icon: LayoutGrid, label: "Kanban" },
   ];
