@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { ListView } from "@/components/tasks/ListView";
@@ -20,7 +20,7 @@ const filterConfig = {
   completed: { label: "Completed", icon: CheckCircle2 },
 } as const;
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { session, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -233,5 +233,24 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-surface-base">
+          <div className="text-center animate-fade-in">
+            <div className="w-10 h-10 rounded-xl bg-action-secondary flex items-center justify-center mx-auto mb-3">
+              <Loader2 className="w-5 h-5 text-action-primary animate-spin" />
+            </div>
+            <p className="text-xs text-content-secondary">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }
