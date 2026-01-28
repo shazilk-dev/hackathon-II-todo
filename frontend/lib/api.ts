@@ -103,7 +103,7 @@ export const api = {
     try {
       const headers = await getAuthHeaders();
       const url = new URL(`${API_URL}/api/${userId}/tasks`);
-      url.searchParams.set("status", status);
+      url.searchParams.set("status_filter", status);
 
       const response = await fetch(url.toString(), { 
         headers,
