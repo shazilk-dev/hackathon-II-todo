@@ -5,7 +5,7 @@ API routes for statistics and focus sessions.
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.session import get_session
+from src.db.session import get_db
 from src.schemas.statistics import (
     FocusSessionCreate,
     FocusSessionResponse,
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api", tags=["statistics"])
 async def get_statistics(
     user_id: str,
     request: Request,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Get comprehensive statistics for the authenticated user.
@@ -64,7 +64,7 @@ async def start_focus_session(
     user_id: str,
     session_data: FocusSessionCreate,
     request: Request,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Start a new Pomodoro focus session.
@@ -96,7 +96,7 @@ async def end_focus_session(
     session_id: int,
     update_data: FocusSessionUpdate,
     request: Request,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     End a focus session and optionally add notes.
@@ -132,7 +132,7 @@ async def end_focus_session(
 async def get_active_focus_session(
     user_id: str,
     request: Request,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Get the currently active focus session (if any).
@@ -163,7 +163,7 @@ async def get_focus_sessions(
     request: Request,
     limit: int = 10,
     task_id: int | None = None,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Get recent focus sessions for the user.
