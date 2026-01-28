@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useCallback, useEffect } from "react";
-import { signIn } from "@/lib/auth-client";
+import { signIn, useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Input from "@/components/ui/Input";
@@ -14,12 +14,21 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      console.log("User already authenticated, redirecting to dashboard");
+      router.replace("/dashboard");
+    }
+  }, [session, status, router]);
+
   // Field-level validation states
   const [emailError, setEmailError] = useState<string | undefined>();
   const [emailSuccess, setEmailSuccess] = useState<string | undefined>();
   const [passwordError, setPasswordError] = useState<string | undefined>();
-
-  const router = useRouter();
 
   // Clear form-level error when user starts typing
   useEffect(() => {
@@ -118,6 +127,18 @@ export default function SignInPage() {
 
   const isFormValid = email && password && !emailError && !passwordError;
 
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-base">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-action-primary animate-spin" />
+          <p className="text-sm text-content-secondary">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Fullscreen Loading Overlay */}
@@ -200,14 +221,14 @@ export default function SignInPage() {
                 disabled={isLoading}
               />
 
-              {/* Forgot Password Link */}
+              {/* Forgot Password Link - disabled until implemented */}
               <div className="flex items-center justify-end">
-                <Link
-                  href="/auth/forgot-password"
-                  className="text-[11px] font-medium text-action-primary hover:text-action-primary-hover transition-colors"
+                <span
+                  className="text-[11px] font-medium text-content-tertiary cursor-not-allowed"
+                  title="Password reset coming soon"
                 >
                   Forgot your password?
-                </Link>
+                </span>
               </div>
 
               {/* Submit Button */}
