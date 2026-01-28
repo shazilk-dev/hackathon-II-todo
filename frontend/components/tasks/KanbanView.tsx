@@ -11,6 +11,7 @@ interface KanbanViewProps {
   onStatusChange: (taskId: number, newStatus: StatusType) => void;
   onUpdate: (task: Task) => void;
   onDelete: (taskId: number) => void;
+  onFocus?: (task: Task) => void;
 }
 
 interface Column {
@@ -27,7 +28,7 @@ const columns: Column[] = [
   { status: "done", title: "Done", icon: CheckCircle2, color: "bg-green-100 text-green-700" },
 ];
 
-export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete }: KanbanViewProps) {
+export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete, onFocus }: KanbanViewProps) {
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<StatusType | null>(null);
 
@@ -125,6 +126,7 @@ export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete }
                       userId={userId}
                       onUpdate={onUpdate}
                       onDelete={onDelete}
+                      onFocus={onFocus}
                     />
                   </div>
                 ))

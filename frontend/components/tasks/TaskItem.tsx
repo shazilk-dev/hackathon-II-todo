@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api, Task, PriorityType, StatusType, Tag } from "@/lib/api";
-import { Pencil, Trash2, Check, X, Calendar, Loader2 } from "lucide-react";
+import { Pencil, Trash2, Check, X, Calendar, Loader2, Focus } from "lucide-react";
 import { StatusBadge, StatusSelect } from "./StatusBadge";
 import { TagDisplay } from "./TagDisplay";
 import { TagInput } from "./TagInput";
@@ -12,9 +12,10 @@ interface TaskItemProps {
   userId: string;
   onUpdate: (task: Task) => void;
   onDelete: (taskId: number) => void;
+  onFocus?: (task: Task) => void;
 }
 
-export function TaskItem({ task, userId, onUpdate, onDelete }: TaskItemProps) {
+export function TaskItem({ task, userId, onUpdate, onDelete, onFocus }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || "");
@@ -334,6 +335,16 @@ export function TaskItem({ task, userId, onUpdate, onDelete }: TaskItemProps) {
             disabled={isLoading}
             className="w-32 h-7 text-xs"
           />
+          {onFocus && !task.completed && (
+            <button
+              onClick={() => onFocus(task)}
+              className="p-1.5 rounded-lg text-content-tertiary hover:text-action-primary hover:bg-action-secondary transition-colors"
+              aria-label="Focus on this task"
+              title="Focus mode"
+            >
+              <Focus className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => setIsEditing(true)}
             className="p-1.5 rounded-lg text-content-tertiary hover:text-action-primary hover:bg-action-secondary transition-colors"

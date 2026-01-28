@@ -13,7 +13,7 @@ import { ViewSwitcher, ViewType } from "@/components/tasks/ViewSwitcher";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { api, Task } from "@/lib/api";
-import { Loader2, ListTodo, Clock, CheckCircle2, Focus } from "lucide-react";
+import { Loader2, ListTodo, Clock, CheckCircle2 } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed";
 
@@ -95,14 +95,15 @@ function DashboardContent() {
   };
 
   const handleDateClick = (date: Date) => {
-    // Create task with selected due date
-    // This could open a modal or form pre-filled with the date
-    console.log("Create task for date:", date);
+    // Switch to list view to show task form where user can create task
+    handleViewChange("list");
   };
 
   const handleTaskClick = (task: Task) => {
-    // Could open task details modal
-    console.log("Task clicked:", task);
+    // Enter focus mode for the clicked task (if not completed)
+    if (!task.completed) {
+      setFocusTask(task);
+    }
   };
 
   // Task counts for badges
@@ -162,12 +163,19 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* Progress Card - Mobile (at top) */}
+        {userId && (
+          <div className="lg:hidden mb-4">
+            <ProgressCard userId={userId} />
+          </div>
+        )}
+
         {/* Two-column layout for larger screens */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main content area */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Task Form (only show in list, grouped, and kanban view) */}
-            {(currentView === "list" || currentView === "grouped" || currentView === "kanban") && userId && (
+            {/* Task Form (show in all views except calendar) */}
+            {currentView !== "calendar" && userId && (
               <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
             )}
 
@@ -229,6 +237,7 @@ function DashboardContent() {
                     error={error}
                     onUpdate={handleTaskUpdated}
                     onDelete={handleTaskDeleted}
+                    onFocus={setFocusTask}
                   />
                 )}
 
@@ -236,8 +245,11 @@ function DashboardContent() {
                   <GroupedTaskList
                     tasks={tasks}
                     userId={userId}
+                    isLoading={isLoading}
+                    error={error}
                     onUpdate={handleTaskUpdated}
                     onDelete={handleTaskDeleted}
+                    onFocus={setFocusTask}
                   />
                 )}
 
@@ -257,6 +269,7 @@ function DashboardContent() {
                     onStatusChange={handleStatusChange}
                     onUpdate={handleTaskUpdated}
                     onDelete={handleTaskDeleted}
+                    onFocus={setFocusTask}
                   />
                 )}
               </>

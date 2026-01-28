@@ -11,9 +11,10 @@ interface ListViewProps {
   error: string | null;
   onUpdate: (task: Task) => void;
   onDelete: (taskId: number) => void;
+  onFocus?: (task: Task) => void;
 }
 
-export function ListView({ tasks, userId, isLoading, error, onUpdate, onDelete }: ListViewProps) {
+export function ListView({ tasks, userId, isLoading, error, onUpdate, onDelete, onFocus }: ListViewProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -74,6 +75,7 @@ export function ListView({ tasks, userId, isLoading, error, onUpdate, onDelete }
             userId={userId}
             onUpdate={onUpdate}
             onDelete={onDelete}
+            onFocus={onFocus}
           />
         </div>
       ))}

@@ -7,8 +7,11 @@ import { Calendar, Clock, Inbox } from "lucide-react";
 interface GroupedTaskListProps {
   tasks: Task[];
   userId: string;
+  isLoading: boolean;
+  error: string | null;
   onUpdate: (task: Task) => void;
   onDelete: (taskId: number) => void;
+  onFocus?: (task: Task) => void;
 }
 
 interface TaskGroup {
@@ -18,7 +21,40 @@ interface TaskGroup {
   tasks: Task[];
 }
 
-export function GroupedTaskList({ tasks, userId, onUpdate, onDelete }: GroupedTaskListProps) {
+export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onDelete, onFocus }: GroupedTaskListProps) {
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-surface-raised rounded-xl p-3 border border-border-subtle animate-pulse">
+            <div className="flex items-start gap-3">
+              <div className="skeleton w-5 h-5 rounded" />
+              <div className="flex-1 space-y-2">
+                <div className="skeleton h-4 w-3/4 rounded" />
+                <div className="skeleton h-3 w-1/2 rounded" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="bg-state-error-light rounded-xl p-3 border border-state-error/20">
+        <div className="flex items-center gap-2 text-state-error">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Group tasks by time periods
   const groupTasks = (): TaskGroup[] => {
     const now = new Date();
@@ -115,6 +151,7 @@ export function GroupedTaskList({ tasks, userId, onUpdate, onDelete }: GroupedTa
                     userId={userId}
                     onUpdate={onUpdate}
                     onDelete={onDelete}
+                    onFocus={onFocus}
                   />
                 </div>
               ))}
