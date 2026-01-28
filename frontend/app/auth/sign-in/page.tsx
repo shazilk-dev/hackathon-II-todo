@@ -30,12 +30,18 @@ export default function SignInPage() {
   const [emailSuccess, setEmailSuccess] = useState<string | undefined>();
   const [passwordError, setPasswordError] = useState<string | undefined>();
 
-  // Clear form-level error when user starts typing
+  // Clear form-level error when user starts typing (only on input change, not on error change)
+  const [prevEmail, setPrevEmail] = useState(email);
+  const [prevPassword, setPrevPassword] = useState(password);
+
   useEffect(() => {
-    if (error && (email || password)) {
+    // Only clear error if user actually changed the input (not just on mount or error set)
+    if (error && (email !== prevEmail || password !== prevPassword)) {
       setError(null);
     }
-  }, [email, password, error]);
+    setPrevEmail(email);
+    setPrevPassword(password);
+  }, [email, password, error, prevEmail, prevPassword]);
 
   // Debounced email validation
   const validateEmailDebounced = useCallback(
