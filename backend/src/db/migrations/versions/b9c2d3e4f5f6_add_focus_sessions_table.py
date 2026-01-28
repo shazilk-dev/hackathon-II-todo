@@ -1,6 +1,6 @@
 """add_focus_sessions_table
 
-Revision ID: b9c2d3e4f5g6
+Revision ID: b9c2d3e4f5f6
 Revises: a8b9c1d2e3f4
 Create Date: 2026-01-28 16:35:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'b9c2d3e4f5g6'
+revision: str = 'b9c2d3e4f5f6'
 down_revision: Union[str, Sequence[str], None] = 'a8b9c1d2e3f4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
