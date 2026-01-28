@@ -1,0 +1,39 @@
+"use client";
+
+import { List, Calendar, LayoutGrid } from "lucide-react";
+
+export type ViewType = "list" | "calendar" | "kanban";
+
+interface ViewSwitcherProps {
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void;
+}
+
+export function ViewSwitcher({ currentView, onViewChange }: ViewSwitcherProps) {
+  const views: { type: ViewType; icon: typeof List; label: string }[] = [
+    { type: "list", icon: List, label: "List" },
+    { type: "calendar", icon: Calendar, label: "Calendar" },
+    { type: "kanban", icon: LayoutGrid, label: "Kanban" },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle rounded-lg p-1">
+      {views.map(({ type, icon: Icon, label }) => (
+        <button
+          key={type}
+          onClick={() => onViewChange(type)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+            currentView === type
+              ? "bg-action-primary text-content-inverse"
+              : "text-content-secondary hover:text-content-primary hover:bg-action-secondary"
+          }`}
+          aria-label={`${label} view`}
+          aria-current={currentView === type ? "page" : undefined}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}

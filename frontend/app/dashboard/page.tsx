@@ -1,25 +1,112 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { TaskList } from "@/components/tasks/TaskList";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { TaskForm } from "@/components/tasks/TaskForm";
+import { ListView } from "@/components/tasks/ListView";
+import { CalendarView } from "@/components/tasks/CalendarView";
+import { KanbanView } from "@/components/tasks/KanbanView";
+import { ViewSwitcher, ViewType } from "@/components/tasks/ViewSwitcher";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { Loader2 } from "lucide-react";
+import { api, Task } from "@/lib/api";
+import { Loader2, ListTodo, Clock, CheckCircle2 } from "lucide-react";
+
+type StatusFilter = "all" | "pending" | "completed";
+
+const filterConfig = {
+  all: { label: "All Tasks", icon: ListTodo },
+  pending: { label: "Pending", icon: Clock },
+  completed: { label: "Completed", icon: CheckCircle2 },
+} as const;
 
 export default function DashboardPage() {
-  const { session, isLoading } = useAuth();
+  const { session, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+
+  const userId = session?.user?.id;
+
+  // Get view from URL, default to list
+  const currentView = (searchParams.get("view") as ViewType) || "list";
+
+  // Fetch tasks
+  const fetchTasks = useCallback(async () => {
+    if (!userId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.getTasks(userId, filter);
+      setTasks(response.tasks);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch tasks");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, filter]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
 
   // Client-side redirect if not authenticated
   useEffect(() => {
-    if (!isLoading && !session) {
+    if (!authLoading && !session) {
       router.push("/auth/sign-in");
     }
-  }, [session, isLoading, router]);
+  }, [session, authLoading, router]);
+
+  // Update URL when view changes
+  const handleViewChange = (view: ViewType) => {
+    router.push(`/dashboard?view=${view}`);
+  };
+
+  const handleTaskCreated = (task: Task) => {
+    setTasks((prev) => [task, ...prev]);
+  };
+
+  const handleTaskUpdated = (updatedTask: Task) => {
+    setTasks((prev) => prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
+  };
+
+  const handleTaskDeleted = (taskId: number) => {
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  };
+
+  const handleStatusChange = async (taskId: number, newStatus: any) => {
+    if (!userId) return;
+    try {
+      const updated = await api.changeStatus(userId, taskId, newStatus);
+      handleTaskUpdated(updated);
+    } catch (err) {
+      console.error("Failed to change status:", err);
+    }
+  };
+
+  const handleDateClick = (date: Date) => {
+    // Create task with selected due date
+    // This could open a modal or form pre-filled with the date
+    console.log("Create task for date:", date);
+  };
+
+  const handleTaskClick = (task: Task) => {
+    // Could open task details modal
+    console.log("Task clicked:", task);
+  };
+
+  // Task counts for badges
+  const pendingCount = tasks.filter((t) => !t.completed).length;
+  const completedCount = tasks.filter((t) => t.completed).length;
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-base">
         <div className="text-center animate-fade-in">
@@ -42,19 +129,108 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-surface-base">
       <Header />
 
-      <main className="max-w-2xl mx-auto py-5 px-3 sm:px-4">
+      <main className="max-w-7xl mx-auto py-5 px-3 sm:px-4">
         {/* Page Header */}
         <div className="mb-5 animate-slide-up">
-          <h1 className="text-lg font-semibold text-content-primary mb-1">
-            My Tasks
-          </h1>
-          <p className="text-sm text-content-secondary">
-            Organize your day, track your progress, get things done.
-          </p>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-lg font-semibold text-content-primary mb-1">My Tasks</h1>
+              <p className="text-sm text-content-secondary">
+                Organize your day, track your progress, get things done.
+              </p>
+            </div>
+            <ViewSwitcher currentView={currentView} onViewChange={handleViewChange} />
+          </div>
         </div>
 
-        {/* Task List */}
-        <TaskList />
+        <div className="space-y-4">
+          {/* Task Form (only show in list and kanban view) */}
+          {(currentView === "list" || currentView === "kanban") && userId && (
+            <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
+          )}
+
+          {/* Stats & Filter Row (only in list view) */}
+          {currentView === "list" && (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-content-tertiary">Total</span>
+                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">
+                    {tasks.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-content-tertiary">Pending</span>
+                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">
+                    {pendingCount}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-content-tertiary">Done</span>
+                  <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">
+                    {completedCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 p-0.5 bg-surface-base rounded-lg border border-border-subtle">
+                {(Object.keys(filterConfig) as StatusFilter[]).map((status) => {
+                  const { label, icon: Icon } = filterConfig[status];
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setFilter(status)}
+                      className={`flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-md transition-all ${
+                        filter === status
+                          ? "bg-surface-raised text-content-primary shadow-sm"
+                          : "text-content-tertiary hover:text-content-secondary"
+                      }`}
+                      aria-pressed={filter === status}
+                    >
+                      <Icon className="w-3 h-3" />
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Views */}
+          {userId && (
+            <>
+              {currentView === "list" && (
+                <ListView
+                  tasks={tasks}
+                  userId={userId}
+                  isLoading={isLoading}
+                  error={error}
+                  onUpdate={handleTaskUpdated}
+                  onDelete={handleTaskDeleted}
+                />
+              )}
+
+              {currentView === "calendar" && (
+                <CalendarView
+                  tasks={tasks}
+                  userId={userId}
+                  onDateClick={handleDateClick}
+                  onTaskClick={handleTaskClick}
+                />
+              )}
+
+              {currentView === "kanban" && (
+                <KanbanView
+                  tasks={tasks}
+                  userId={userId}
+                  onStatusChange={handleStatusChange}
+                  onUpdate={handleTaskUpdated}
+                  onDelete={handleTaskDeleted}
+                />
+              )}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );

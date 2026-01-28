@@ -275,6 +275,35 @@ class TaskService:
         return task_id
 
     @staticmethod
+    async def get_tasks_grouped_by_status(
+        session: AsyncSession,
+        user_id: str,
+    ) -> dict[str, list[Task]]:
+        """
+        Get tasks grouped by status for kanban view.
+
+        Args:
+            session: Async database session
+            user_id: ID of the user (from JWT)
+
+        Returns:
+            Dictionary with status as keys and lists of tasks as values
+        """
+        tasks = await TaskService.get_tasks(session, user_id, status="all", sort="created")
+
+        grouped: dict[str, list[Task]] = {
+            "backlog": [],
+            "in_progress": [],
+            "blocked": [],
+            "done": []
+        }
+
+        for task in tasks:
+            grouped[task.status].append(task)
+
+        return grouped
+
+    @staticmethod
     async def toggle_completion(
         session: AsyncSession,
         user_id: str,

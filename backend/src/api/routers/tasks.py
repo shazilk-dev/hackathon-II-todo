@@ -360,3 +360,41 @@ async def change_task_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+
+
+@router.get(
+    "/{user_id}/tasks/grouped",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    summary="Get tasks grouped by status",
+    description="Get tasks grouped by status for kanban view",
+    responses={
+        200: {"description": "Tasks grouped by status"},
+        401: {"description": "Missing or invalid JWT token"},
+        403: {"description": "User ID in path doesn't match JWT"},
+    },
+)
+async def get_grouped_tasks(
+    user_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get tasks grouped by status (backlog, in_progress, blocked, done).
+    """
+    verify_user_access(request, user_id)
+
+    grouped = await TaskService.get_tasks_grouped_by_status(session, user_id)
+
+    # Convert to response format with tags
+    result = {}
+    for status_key, tasks in grouped.items():
+        task_responses = []
+        for task in tasks:
+            tags = await TagService.get_task_tags(session, task.id)
+            task_dict = TaskResponse.model_validate(task).model_dump()
+            task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
+            task_responses.append(task_dict)
+        result[status_key] = task_responses
+
+    return result
