@@ -18,6 +18,9 @@ class ApiError extends Error {
 // Cache for JWT token to avoid fetching on every request
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+// Mutex to prevent concurrent token fetches
+let tokenFetchPromise: Promise<{ token: string; expiresAt: number }> | null = null;
+
 async function getAuthHeaders(): Promise<HeadersInit> {
   // First verify we have a NextAuth session
   const session = await getSession();
@@ -36,32 +39,54 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     };
   }
 
-  // Fetch a new JWT token from our token exchange endpoint
-  try {
-    const tokenResponse = await fetch(`${AUTH_URL}/api/auth/token`, {
-      credentials: "include" // Include NextAuth session cookie
-    });
-
-    if (!tokenResponse.ok) {
-      throw new ApiError(401, "Failed to get authentication token");
+  // If a token fetch is already in progress, wait for it
+  if (tokenFetchPromise) {
+    try {
+      const tokenData = await tokenFetchPromise;
+      return {
+        "Authorization": `Bearer ${tokenData.token}`,
+        "Content-Type": "application/json"
+      };
+    } catch (error) {
+      // If the in-progress fetch failed, continue to try fetching again
+      tokenFetchPromise = null;
     }
-
-    const tokenData = await tokenResponse.json();
-
-    // Cache the token
-    cachedToken = {
-      token: tokenData.token,
-      expiresAt: now + (60 * 60 * 24 * 7) // 7 days
-    };
-
-    return {
-      "Authorization": `Bearer ${tokenData.token}`,
-      "Content-Type": "application/json"
-    };
-  } catch (error) {
-    cachedToken = null; // Clear cache on error
-    throw new ApiError(401, "Authentication failed");
   }
+
+  // Fetch a new JWT token from our token exchange endpoint
+  tokenFetchPromise = (async () => {
+    try {
+      const tokenResponse = await fetch(`${AUTH_URL}/api/auth/token`, {
+        credentials: "include" // Include NextAuth session cookie
+      });
+
+      if (!tokenResponse.ok) {
+        throw new ApiError(401, "Failed to get authentication token");
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      // Cache the token
+      const now = Date.now() / 1000;
+      cachedToken = {
+        token: tokenData.token,
+        expiresAt: now + (60 * 60 * 24 * 7) // 7 days
+      };
+
+      return cachedToken;
+    } catch (error) {
+      cachedToken = null; // Clear cache on error
+      throw new ApiError(401, "Authentication failed");
+    } finally {
+      tokenFetchPromise = null; // Clear the promise
+    }
+  })();
+
+  const tokenData = await tokenFetchPromise;
+  return {
+    "Authorization": `Bearer ${tokenData.token}`,
+    "Content-Type": "application/json"
+  };
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -70,6 +95,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new ApiError(response.status, error.detail || response.statusText);
   }
   return response.json();
+}
+
+// Helper to check if error should be suppressed (browser extension errors, etc)
+function isSuppressibleError(error: unknown): boolean {
+  if (error instanceof Error) {
+    // Suppress AbortError (happens when requests are cancelled/duplicated)
+    if (error.name === 'AbortError') return true;
+    // Suppress message port errors (browser extension communication issues)
+    if (error.message.includes('message port')) return true;
+  }
+  return false;
 }
 
 export type PriorityType = "low" | "medium" | "high" | "critical";

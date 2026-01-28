@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api, UserStatistics } from "@/lib/api";
 import { TrendingUp, Flame, Target, Calendar } from "lucide-react";
 
@@ -13,11 +13,7 @@ export function ProgressCard({ userId }: ProgressCardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchStatistics();
-  }, [userId]);
-
-  const fetchStatistics = async () => {
+  const fetchStatistics = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -29,7 +25,11 @@ export function ProgressCard({ userId }: ProgressCardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchStatistics();
+  }, [fetchStatistics]);
 
   if (isLoading) {
     return (

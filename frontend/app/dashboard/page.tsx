@@ -33,6 +33,7 @@ function DashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [focusTask, setFocusTask] = useState<Task | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const userId = session?.user?.id;
 
@@ -49,12 +50,16 @@ function DashboardContent() {
     try {
       const response = await api.getTasks(userId, filter);
       setTasks(response.tasks);
+      // Mark initial load as complete after first successful fetch
+      if (!initialLoadComplete) {
+        setInitialLoadComplete(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch tasks");
     } finally {
       setIsLoading(false);
     }
-  }, [userId, filter]);
+  }, [userId, filter, initialLoadComplete]);
 
   useEffect(() => {
     fetchTasks();
@@ -164,7 +169,7 @@ function DashboardContent() {
         </div>
 
         {/* Progress Card - Mobile (at top) */}
-        {userId && (
+        {userId && initialLoadComplete && (
           <div className="lg:hidden mb-4">
             <ProgressCard userId={userId} />
           </div>
@@ -277,7 +282,7 @@ function DashboardContent() {
           </div>
 
           {/* Sidebar - Progress Card (only on larger screens) */}
-          {userId && (
+          {userId && initialLoadComplete && (
             <div className="hidden lg:block">
               <div className="sticky top-20">
                 <ProgressCard userId={userId} />
