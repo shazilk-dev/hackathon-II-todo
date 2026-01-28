@@ -3,6 +3,11 @@ import { getSession } from "./auth-client";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:3000";
 
+// Log API URL for debugging (only in development or when there's an issue)
+if (typeof window !== 'undefined') {
+  console.log(`[API] Using backend URL: ${API_URL}`);
+}
+
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -107,7 +112,7 @@ export const api = {
       return handleResponse<TasksResponse>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
@@ -127,7 +132,7 @@ export const api = {
       return handleResponse<Task>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
@@ -145,7 +150,7 @@ export const api = {
       return handleResponse<Task>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
@@ -165,7 +170,7 @@ export const api = {
       return handleResponse<Task>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
@@ -184,7 +189,7 @@ export const api = {
       return handleResponse<{ message: string }>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
@@ -203,7 +208,7 @@ export const api = {
       return handleResponse<Task>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, 'Backend server is not running. Please start the backend server at http://localhost:8000');
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;
     }
