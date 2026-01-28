@@ -59,6 +59,27 @@ app.middleware("http")(jwt_auth_middleware)
 app.include_router(tasks.router)
 
 
+# Root endpoint
+@app.get(
+    "/",
+    tags=["root"],
+    summary="API Root",
+    response_model=dict[str, str],
+)
+async def root() -> dict[str, str]:
+    """
+    Root endpoint with API information.
+
+    Returns welcome message and useful links.
+    """
+    return {
+        "message": f"Welcome to {settings.app_name}",
+        "version": settings.app_version,
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 # Task: T038 - Health check endpoint
 @app.get(
     "/health",

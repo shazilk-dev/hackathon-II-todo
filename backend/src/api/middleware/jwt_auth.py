@@ -14,7 +14,7 @@ from jose import JWTError, jwt
 from src.config import settings
 
 # Public endpoints that don't require authentication
-PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
+PUBLIC_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
 
 # Better Auth cookie names (try multiple for compatibility)
 BETTER_AUTH_COOKIE_NAMES = [
