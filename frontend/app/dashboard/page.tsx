@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { ListView } from "@/components/tasks/ListView";
@@ -28,7 +28,7 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -40,7 +40,7 @@ function DashboardContent() {
   // Get view from URL, default to list
   const currentView = (searchParams.get("view") as ViewType) || "list";
 
-  // Fetch tasks
+  // Fetch ALL tasks once (no filter parameter)
   const fetchTasks = useCallback(async () => {
     if (!userId) return;
 
@@ -48,8 +48,8 @@ function DashboardContent() {
     setError(null);
 
     try {
-      const response = await api.getTasks(userId, filter);
-      setTasks(response.tasks);
+      const response = await api.getTasks(userId, "all");
+      setAllTasks(response.tasks);
       // Mark initial load as complete after first successful fetch
       if (!initialLoadComplete) {
         setInitialLoadComplete(true);
@@ -59,11 +59,19 @@ function DashboardContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, filter, initialLoadComplete]);
+  }, [userId, initialLoadComplete]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Client-side filtering (INSTANT - no API call!)
+  const tasks = useMemo(() => {
+    if (filter === "all") return allTasks;
+    if (filter === "pending") return allTasks.filter(t => !t.completed);
+    if (filter === "completed") return allTasks.filter(t => t.completed);
+    return allTasks;
+  }, [allTasks, filter]);
 
   // Client-side redirect if not authenticated
   useEffect(() => {
@@ -78,15 +86,15 @@ function DashboardContent() {
   };
 
   const handleTaskCreated = (task: Task) => {
-    setTasks((prev) => [task, ...prev]);
+    setAllTasks((prev) => [task, ...prev]);
   };
 
   const handleTaskUpdated = (updatedTask: Task) => {
-    setTasks((prev) => prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
+    setAllTasks((prev) => prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
   };
 
   const handleTaskDeleted = (taskId: number) => {
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setAllTasks((prev) => prev.filter((task) => task.id !== taskId));
   };
 
   const handleStatusChange = async (taskId: number, newStatus: any) => {
