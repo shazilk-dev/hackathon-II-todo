@@ -3,11 +3,14 @@ Tag models for categorizing tasks.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlmodel import Field, Relationship, SQLModel
 
 from src.models.base import TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.task import Task
 
 
 class Tag(SQLModel, table=True):
@@ -69,3 +72,7 @@ class TaskTag(SQLModel, table=True):
         nullable=False,
         description="Association creation timestamp"
     )
+
+    # Relationships for eager loading
+    task_rel: "Task" = Relationship(back_populates="task_tags")
+    tag_rel: Tag = Relationship()

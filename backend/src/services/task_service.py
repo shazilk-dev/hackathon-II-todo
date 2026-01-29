@@ -34,6 +34,7 @@ class TaskService:
         priority_filter: Optional[str] = None,
         due_date_filter: Optional[str] = None,
         tag_filter: Optional[list[int]] = None,
+        load_tags: bool = True,
     ) -> list[Task]:
         """
         Task: T041
@@ -47,16 +48,24 @@ class TaskService:
             priority_filter: Filter by priority ('low', 'medium', 'high', 'critical')
             due_date_filter: Filter by due date ('overdue', 'today', 'this_week', 'all')
             tag_filter: Filter by tag IDs (tasks with ANY of these tags)
+            load_tags: Whether to eager load tags (prevents N+1 queries)
 
         Returns:
-            List of tasks matching the filters
+            List of tasks matching the filters (with tags loaded if load_tags=True)
         """
         from sqlalchemy import case
+        from sqlalchemy.orm import selectinload
         from datetime import timedelta
-        from src.models.tag import TaskTag
+        from src.models.tag import TaskTag, Tag
 
         # Base query with user isolation
         statement = select(Task).where(Task.user_id == user_id)
+
+        # Eager load tags to prevent N+1 queries (loads all tags in 1 additional query)
+        if load_tags:
+            statement = statement.options(
+                selectinload(Task.task_tags).selectinload(TaskTag.tag_rel)
+            )
 
         # Apply tag filter (tasks with any of the specified tags)
         if tag_filter and len(tag_filter) > 0:
@@ -163,6 +172,7 @@ class TaskService:
         session: AsyncSession,
         user_id: str,
         task_id: int,
+        load_tags: bool = True,
     ) -> Task:
         """
         Task: T043
@@ -172,17 +182,27 @@ class TaskService:
             session: Async database session
             user_id: ID of the user (from JWT)
             task_id: ID of the task to retrieve
+            load_tags: Whether to eager load tags (prevents N+1 queries)
 
         Returns:
-            The requested task
+            The requested task (with tags loaded if load_tags=True)
 
         Raises:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
+        from sqlalchemy.orm import selectinload
+        from src.models.tag import TaskTag
+
         statement = select(Task).where(
             Task.id == task_id,
             Task.user_id == user_id,
         )
+
+        # Eager load tags to prevent N+1 queries
+        if load_tags:
+            statement = statement.options(
+                selectinload(Task.task_tags).selectinload(TaskTag.tag_rel)
+            )
 
         result = await session.execute(statement)
         task = result.scalar_one_or_none()
@@ -191,6 +211,15 @@ class TaskService:
             raise TaskNotFoundError(task_id, user_id)
 
         return task
+
+    @staticmethod
+    async def _load_task_tags(task: Task):
+        """
+        Helper to extract tags from pre-loaded task_tags relationship.
+
+        Returns list of Tag objects from the task's task_tags relationship.
+        """
+        return [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
 
     @staticmethod
     async def update_task(
@@ -216,7 +245,7 @@ class TaskService:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
         # Get existing task (raises TaskNotFoundError if not found)
-        task = await TaskService.get_task(session, user_id, task_id)
+        task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
         # Apply updates (only non-None fields)
         if task_data.title is not None:
@@ -241,9 +270,9 @@ class TaskService:
 
         session.add(task)
         await session.commit()
-        await session.refresh(task)
 
-        return task
+        # Reload with tags for response (1 additional query for tags)
+        return await TaskService.get_task(session, user_id, task_id, load_tags=True)
 
     @staticmethod
     async def delete_task(
@@ -327,7 +356,7 @@ class TaskService:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
         # Get existing task (raises TaskNotFoundError if not found)
-        task = await TaskService.get_task(session, user_id, task_id)
+        task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
         # Track old status to detect completion
         old_completed = task.completed
@@ -339,14 +368,14 @@ class TaskService:
 
         session.add(task)
         await session.commit()
-        await session.refresh(task)
 
         # Log completion if task was just marked as complete
         if task.completed and not old_completed:
             from src.services.statistics_service import StatisticsService
             await StatisticsService.log_completion(session, user_id, task_id)
 
-        return task
+        # Reload with tags for response (1 additional query for tags)
+        return await TaskService.get_task(session, user_id, task_id, load_tags=True)
 
     @staticmethod
     async def change_status(
@@ -371,7 +400,7 @@ class TaskService:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
         # Get existing task (raises TaskNotFoundError if not found)
-        task = await TaskService.get_task(session, user_id, task_id)
+        task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
         # Track old status to detect completion
         old_status = task.status
@@ -383,11 +412,11 @@ class TaskService:
 
         session.add(task)
         await session.commit()
-        await session.refresh(task)
 
         # Log completion if task was just marked as done
         if new_status == "done" and old_status != "done":
             from src.services.statistics_service import StatisticsService
             await StatisticsService.log_completion(session, user_id, task_id)
 
-        return task
+        # Reload with tags for response (1 additional query for tags)
+        return await TaskService.get_task(session, user_id, task_id, load_tags=True)

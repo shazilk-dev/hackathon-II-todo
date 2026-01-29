@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { api, Task, PriorityType, StatusType, Tag } from "@/lib/api";
 import { Pencil, Trash2, Check, X, Calendar, Loader2, Focus } from "lucide-react";
 import { StatusBadge, StatusSelect } from "./StatusBadge";
@@ -15,7 +15,7 @@ interface TaskItemProps {
   onFocus?: (task: Task) => void;
 }
 
-export function TaskItem({ task, userId, onUpdate, onDelete, onFocus }: TaskItemProps) {
+export const TaskItem = memo(function TaskItem({ task, userId, onUpdate, onDelete, onFocus }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || "");
@@ -364,4 +364,4 @@ export function TaskItem({ task, userId, onUpdate, onDelete, onFocus }: TaskItem
       </div>
     </div>
   );
-}
+});

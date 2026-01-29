@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Tag } from "@/lib/api";
 import { X } from "lucide-react";
 
@@ -10,7 +11,7 @@ interface TagDisplayProps {
   className?: string;
 }
 
-export function TagDisplay({ tags, onRemove, readOnly = false, className = "" }: TagDisplayProps) {
+export const TagDisplay = memo(function TagDisplay({ tags, onRemove, readOnly = false, className = "" }: TagDisplayProps) {
   if (tags.length === 0) {
     return null;
   }
@@ -42,4 +43,4 @@ export function TagDisplay({ tags, onRemove, readOnly = false, className = "" }:
       ))}
     </div>
   );
-}
+});

@@ -4,11 +4,14 @@ Task model for todo items with user isolation.
 """
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, TYPE_CHECKING
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 from src.models.base import TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.tag import TaskTag
 
 # Priority type for tasks
 PriorityType = Literal["low", "medium", "high", "critical"]
@@ -54,6 +57,9 @@ class Task(TimestampMixin, table=True):
         index=True,
         description="Task status (backlog, in_progress, blocked, done)"
     )
+
+    # Relationships for eager loading (prevents N+1 queries)
+    task_tags: list["TaskTag"] = Relationship(back_populates="task_rel")
 
     # created_at and updated_at inherited from TimestampMixin
 

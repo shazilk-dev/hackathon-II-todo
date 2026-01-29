@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { StatusType } from "@/lib/api";
 import { Inbox, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
 
@@ -38,7 +39,7 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-export function StatusBadge({ status, showIcon = true, className = "" }: StatusBadgeProps) {
+export const StatusBadge = memo(function StatusBadge({ status, showIcon = true, className = "" }: StatusBadgeProps) {
   const config = statusConfigs[status];
   const Icon = config.icon;
 
@@ -50,7 +51,7 @@ export function StatusBadge({ status, showIcon = true, className = "" }: StatusB
       {config.label}
     </span>
   );
-}
+});
 
 interface StatusSelectProps {
   status: StatusType;
@@ -59,7 +60,7 @@ interface StatusSelectProps {
   className?: string;
 }
 
-export function StatusSelect({ status, onChange, disabled = false, className = "" }: StatusSelectProps) {
+export const StatusSelect = memo(function StatusSelect({ status, onChange, disabled = false, className = "" }: StatusSelectProps) {
   return (
     <select
       value={status}
@@ -75,4 +76,4 @@ export function StatusSelect({ status, onChange, disabled = false, className = "
       ))}
     </select>
   );
-}
+});

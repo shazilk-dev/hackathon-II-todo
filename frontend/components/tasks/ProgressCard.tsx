@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, memo } from "react";
 import { api, UserStatistics } from "@/lib/api";
 import { TrendingUp, Flame, Target, Calendar } from "lucide-react";
 
@@ -8,7 +8,7 @@ interface ProgressCardProps {
   userId: string;
 }
 
-export function ProgressCard({ userId }: ProgressCardProps) {
+export const ProgressCard = memo(function ProgressCard({ userId }: ProgressCardProps) {
   const [stats, setStats] = useState<UserStatistics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,4 +173,4 @@ export function ProgressCard({ userId }: ProgressCardProps) {
       </div>
     </div>
   );
-}
+});

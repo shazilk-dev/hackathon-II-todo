@@ -87,10 +87,11 @@ async def list_tasks(
         tag_filter
     )
 
-    # Load tags for each task
+    # Tags are already loaded via eager loading (no N+1 queries!)
     task_responses = []
     for task in tasks:
-        tags = await TagService.get_task_tags(session, task.id)
+        # Extract tags from pre-loaded relationship
+        tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
         task_dict = TaskResponse.model_validate(task).model_dump()
         task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
         task_responses.append(TaskResponse(**task_dict))
@@ -166,8 +167,9 @@ async def get_task(
     verify_user_access(request, user_id)
 
     try:
-        task = await TaskService.get_task(session, user_id, task_id)
-        tags = await TagService.get_task_tags(session, task.id)
+        task = await TaskService.get_task(session, user_id, task_id, load_tags=True)
+        # Tags are already loaded via eager loading (no N+1 queries!)
+        tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
         task_dict = TaskResponse.model_validate(task).model_dump()
         task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
         return TaskResponse(**task_dict)
@@ -225,7 +227,8 @@ async def update_task(
 
     try:
         task = await TaskService.update_task(session, user_id, task_id, task_data)
-        tags = await TagService.get_task_tags(session, task.id)
+        # Tags are already loaded via eager loading (no N+1 queries!)
+        tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
         task_dict = TaskResponse.model_validate(task).model_dump()
         task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
         return TaskResponse(**task_dict)
@@ -308,7 +311,8 @@ async def toggle_completion(
 
     try:
         task = await TaskService.toggle_completion(session, user_id, task_id)
-        tags = await TagService.get_task_tags(session, task.id)
+        # Tags are already loaded via eager loading (no N+1 queries!)
+        tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
         task_dict = TaskResponse.model_validate(task).model_dump()
         task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
         return TaskResponse(**task_dict)
@@ -351,7 +355,8 @@ async def change_task_status(
 
     try:
         task = await TaskService.change_status(session, user_id, task_id, status_update.status)
-        tags = await TagService.get_task_tags(session, task.id)
+        # Tags are already loaded via eager loading (no N+1 queries!)
+        tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
         task_dict = TaskResponse.model_validate(task).model_dump()
         task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
         return TaskResponse(**task_dict)
@@ -386,12 +391,13 @@ async def get_grouped_tasks(
 
     grouped = await TaskService.get_tasks_grouped_by_status(session, user_id)
 
-    # Convert to response format with tags
+    # Convert to response format with tags (already loaded via eager loading!)
     result = {}
     for status_key, tasks in grouped.items():
         task_responses = []
         for task in tasks:
-            tags = await TagService.get_task_tags(session, task.id)
+            # Tags are already loaded via eager loading (no N+1 queries!)
+            tags = [task_tag.tag_rel for task_tag in task.task_tags] if task.task_tags else []
             task_dict = TaskResponse.model_validate(task).model_dump()
             task_dict["tags"] = [TagResponseSchema.model_validate(tag) for tag in tags]
             task_responses.append(task_dict)
