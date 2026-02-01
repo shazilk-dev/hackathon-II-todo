@@ -214,6 +214,8 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - In-memory (no persistence - tasks cleared on exit) (001-console-todo)
 - TypeScript 5.7+ (strict mode enabled) (002-web-todo)
 - Browser-side state (Context API for global state, localStorage for preferences) (002-web-todo)
+- TypeScript 5.7+ (strict mode) (005-chat-endpoint)
+- Browser localStorage for UI preferences, backend PostgreSQL for conversation persistence (005-chat-endpoint)
 
 ## Recent Changes
 - 001-console-todo: Added Python 3.13+ + Standard library only (argparse for CLI, dataclasses for models, datetime for timestamps)

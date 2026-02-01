@@ -13,6 +13,7 @@
     "@auth/core": "^0.41.0",
     "@auth/drizzle-adapter": "^1.11.1",
     "@neondatabase/serverless": "^1.0.2",
+    "@openai/chatkit-react": "^1.4.3",
     "bcryptjs": "^3.0.3",
     "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.45.1",

@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     )
     debug: bool = Field(default=False, description="Enable debug mode and SQL logging")
 
+    # OpenAI ChatKit
+    openai_api_key: str = Field(
+        ...,
+        description="OpenAI API key for ChatKit session creation",
+    )
+
     # API Metadata
     app_name: str = Field(default="Hackathon Todo API")
     app_version: str = Field(default="0.1.0")
@@ -64,10 +70,17 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        """Validate database URL format for asyncpg."""
-        if not v.startswith("postgresql+asyncpg://"):
+        """
+        Validate database URL format.
+
+        Allows:
+        - postgresql+asyncpg:// (production)
+        - sqlite+aiosqlite:// (tests)
+        """
+        valid_prefixes = ("postgresql+asyncpg://", "sqlite+aiosqlite://")
+        if not v.startswith(valid_prefixes):
             raise ValueError(
-                "DATABASE_URL must use asyncpg driver: postgresql+asyncpg://..."
+                f"DATABASE_URL must use asyncpg or aiosqlite driver: {valid_prefixes}"
             )
         return v
 

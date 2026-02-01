@@ -9,20 +9,24 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
+# IMPORTANT: Set DATABASE_URL BEFORE importing models
+# This allows Message model to detect SQLite and use JSON instead of JSONB
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Field
 
 from src.config import settings
 from src.db.session import get_db
 from src.main import app
 from src.models.task import Task
 from src.models.user import User
-
-# Test database URL - use in-memory SQLite for fast tests
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+from src.models.conversation import Conversation
+from src.models.message import Message
 
 
 @pytest.fixture(scope="function")

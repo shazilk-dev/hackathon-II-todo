@@ -1,0 +1,226 @@
+INFO:     127.0.0.1:51814 - "GET /api/81414780-474b-45a9-b64b-b1c1d15cd6c4/statistics HTTP/1.1" 200 OK
+2026-02-01 11:33:53,497 INFO sqlalchemy.engine.Engine COMMIT
+2026-02-01 11:33:53,502 INFO sqlalchemy.engine.Engine SELECT count(tasks.id) AS count_1
+FROM tasks
+WHERE tasks.user_id = $1::VARCHAR AND tasks.status = $2::VARCHAR
+2026-02-01 11:33:53,507 INFO sqlalchemy.engine.Engine [cached since 2.054s ago] ('81414780-474b-45a9-b64b-b1c1d15cd6c4', 'done')
+2026-02-01 11:33:53,531 INFO sqlalchemy.engine.Engine SELECT date(task_completions.completed_at) AS completion_date, count(task_completions.id) AS count
+FROM task_completions
+WHERE task_completions.user_id = $1::VARCHAR AND date(task_completions.completed_at) >= $2::DATE AND date(task_completions.completed_at) <= $3::DATE GROUP BY date(task_completions.completed_at)   
+2026-02-01 11:33:53,534 INFO sqlalchemy.engine.Engine [cached since 0.5355s ago] ('81414780-474b-45a9-b64b-b1c1d15cd6c4', datetime.date(2026, 1, 26), datetime.date(2026, 2, 1))
+2026-02-01 11:33:53,687 INFO sqlalchemy.engine.Engine SELECT count(task_completions.id) AS count_1
+FROM task_completions
+WHERE task_completions.user_id = $1::VARCHAR
+2026-02-01 11:33:53,693 INFO sqlalchemy.engine.Engine [cached since 2.037s ago] ('81414780-474b-45a9-b64b-b1c1d15cd6c4',)
+INFO:     127.0.0.1:51811 - "GET /api/81414780-474b-45a9-b64b-b1c1d15cd6c4/statistics HTTP/1.1" 200 OK
+2026-02-01 11:33:53,712 INFO sqlalchemy.engine.Engine COMMIT
+2026-02-01 11:33:53,882 INFO sqlalchemy.engine.Engine SELECT date(task_completions.completed_at) AS completion_date
+FROM task_completions
+WHERE task_completions.user_id = $1::VARCHAR GROUP BY date(task_completions.completed_at) ORDER BY date(task_completions.completed_at) DESC
+2026-02-01 11:33:53,884 INFO sqlalchemy.engine.Engine [cached since 2.041s ago] ('81414780-474b-45a9-b64b-b1c1d15cd6c4',)
+2026-02-01 11:33:54,073 INFO sqlalchemy.engine.Engine SELECT date(task_completions.completed_at) AS completion_date, count(task_completions.id) AS count
+FROM task_completions
+WHERE task_completions.user_id = $1::VARCHAR AND date(task_completions.completed_at) >= $2::DATE AND date(task_completions.completed_at) <= $3::DATE GROUP BY date(task_completions.completed_at)   
+2026-02-01 11:33:54,074 INFO sqlalchemy.engine.Engine [cached since 1.075s ago] ('81414780-474b-45a9-b64b-b1c1d15cd6c4', datetime.date(2026, 1, 26), datetime.date(2026, 2, 1))
+INFO:     127.0.0.1:51817 - "GET /api/81414780-474b-45a9-b64b-b1c1d15cd6c4/statistics HTTP/1.1" 200 OK
+2026-02-01 11:33:54,243 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:51835 - "OPTIONS /api/81414780-474b-45a9-b64b-b1c1d15cd6c4/chat HTTP/1.1" 200 
+OK
+Found JWT token in Authorization header
+Authenticated user: 81414780-474b-45a9-b64b-b1c1d15cd6c4 (shazil.akn@gmail.com)
+2026-02-01 11:34:08,625 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-01 11:34:08,628 INFO sqlalchemy.engine.Engine INSERT INTO conversations (user_id, created_at, updated_at) VALUES ($1::VARCHAR, $2::TIMESTAMP WITHOUT TIME ZONE, $3::TIMESTAMP WITHOUT TIME ZONE) RETURNING conversations.id
+2026-02-01 11:34:08,628 INFO sqlalchemy.engine.Engine [generated in 0.00063s] ('81414780-474b-45a9-b64b-b1c1d15cd6c4', datetime.datetime(2026, 2, 1, 6, 34, 8, 379147, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 2, 1, 6, 34, 8, 379151, tzinfo=datetime.timezone.utc))
+2026-02-01 11:34:08,822 INFO sqlalchemy.engine.Engine ROLLBACK
+Unexpected error in chat endpoint for user 81414780-474b-45a9-b64b-b1c1d15cd6c4: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $2: datetime.datetime(2026, 2, 1, 6, 34, 8, ... (can't subtract offset-naive and offset-aware datetimes)
+[SQL: INSERT INTO conversations (user_id, created_at, updated_at) VALUES ($1::VARCHAR, $2::TIMESTAMP WITHOUT TIME ZONE, $3::TIMESTAMP WITHOUT TIME ZONE) RETURNING conversations.id]
+[parameters: ('81414780-474b-45a9-b64b-b1c1d15cd6c4', datetime.datetime(2026, 2, 1, 6, 34, 8, 379147, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 2, 1, 6, 34, 8, 379151, tzinfo=datetime.timezone.utc))]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Traceback (most recent call last):
+  File "asyncpg/protocol/prepared_stmt.pyx", line 175, in asyncpg.protocol.protocol.PreparedStatementState._encode_bind_msg
+  File "asyncpg/protocol/codecs/base.pyx", line 251, in asyncpg.protocol.protocol.Codec.encode    
+  File "asyncpg/protocol/codecs/base.pyx", line 153, in asyncpg.protocol.protocol.Codec.encode_scalar
+  File "asyncpg/pgproto/codecs/datetime.pyx", line 152, in asyncpg.pgproto.pgproto.timestamp_encode
+TypeError: can't subtract offset-naive and offset-aware datetimes
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 550, in _prepare_and_execute
+    self._rows = deque(await prepared_stmt.fetch(*parameters))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\asyncpg\prepared_stmt.py", line 177, in fetch
+    data = await self.__bind_execute(args, 0, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\asyncpg\prepared_stmt.py", line 268, in __bind_execute
+    data, status, _ = await self.__do_execute(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda protocol: protocol.bind_execute(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            self._state, args, '', limit, True, timeout))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\asyncpg\prepared_stmt.py", line 257, in __do_execute
+    return await executor(protocol)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 184, in bind_execute
+  File "asyncpg/protocol/prepared_stmt.pyx", line 204, in asyncpg.protocol.protocol.PreparedStatementState._encode_bind_msg
+asyncpg.exceptions.DataError: invalid input for query argument $2: datetime.datetime(2026, 2, 1, 6, 34, 8, ... (can't subtract offset-naive and offset-aware datetimes)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 585, in execute
+    self._adapt_connection.await_(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._prepare_and_execute(operation, parameters)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 563, in _prepare_and_execute
+    self._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 513, in _handle_exception
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
+    raise translated_error from error
+sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.Error: <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $2: datetime.datetime(2026, 2, 1, 6, 34, 8, ... (can't subtract offset-naive and offset-aware datetimes)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\src\api\routers\chat.py", line 81, in chat_endpoint
+    await session.flush()  # Get conversation.id without committing
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 787, in flush
+    await greenlet_spawn(self.sync_session.flush, objects=objects)
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 203, in greenlet_spawn
+    result = context.switch(value)
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+        statement,
+        params,
+        execution_options=execution_options,
+    )
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 585, in execute
+    self._adapt_connection.await_(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._prepare_and_execute(operation, parameters)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 563, in _prepare_and_execute
+    self._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 513, in _handle_exception
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "F:\PROJECTS\hackathone-II\hackathon-todo\backend\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
+    raise translated_error from error
+sqlalchemy.exc.DBAPIError: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $2: datetime.datetime(2026, 2, 1, 6, 34, 8, ... (can't subtract offset-naive and offset-aware datetimes)
+[SQL: INSERT INTO conversations (user_id, created_at, updated_at) VALUES ($1::VARCHAR, $2::TIMESTAMP WITHOUT TIME ZONE, $3::TIMESTAMP WITHOUT TIME ZONE) RETURNING conversations.id]
+[parameters: ('81414780-474b-45a9-b64b-b1c1d15cd6c4', datetime.datetime(2026, 2, 1, 6, 34, 8, 379147, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 2, 1, 6, 34, 8, 379151, tzinfo=datetime.timezone.utc))]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+INFO:     127.0.0.1:51835 - "POST /api/81414780-474b-45a9-b64b-b1c1d15cd6c4/chat HTTP/1.1" 500 Internal Server Error

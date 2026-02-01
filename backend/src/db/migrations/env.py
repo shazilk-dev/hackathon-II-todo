@@ -15,6 +15,8 @@ from sqlmodel import SQLModel
 from src.config import settings
 
 # Import all models to ensure they're registered with SQLModel metadata
+from src.models.conversation import Conversation  # noqa: F401
+from src.models.message import Message  # noqa: F401
 from src.models.task import Task  # noqa: F401
 from src.models.user import User  # noqa: F401
 

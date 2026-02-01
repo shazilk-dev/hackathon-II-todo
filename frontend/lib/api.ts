@@ -220,6 +220,24 @@ export interface UserStatistics {
   weekly: WeeklyStatistics;
 }
 
+// Chat types
+export interface ChatRequest {
+  conversation_id: number | null;
+  message: string;
+}
+
+export interface ToolCall {
+  tool: string;
+  args: Record<string, unknown>;
+  result: Record<string, unknown>;
+}
+
+export interface ChatResponse {
+  conversation_id: number;
+  response: string;
+  tool_calls: ToolCall[];
+}
+
 export const api = {
   // Get all tasks for user
   async getTasks(userId: string, status: "all" | "pending" | "completed" = "all"): Promise<TasksResponse> {
@@ -519,6 +537,24 @@ export const api = {
       return handleResponse<FocusSession[]>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
+  },
+
+  // Chat
+  async sendChat(userId: string, data: ChatRequest): Promise<ChatResponse> {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/${userId}/chat`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data),
+      });
+      return handleResponse<ChatResponse>(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
         throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
       }
       throw error;

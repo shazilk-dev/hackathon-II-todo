@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.middleware.jwt_auth import jwt_auth_middleware
-from src.api.routers import statistics, tags, tasks
+from src.api.routers import chat, chatkit_session, statistics, tags, tasks
 from src.config import settings
 
 
@@ -25,6 +25,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     Handles startup and shutdown events.
     """
+    import os
+
+    # Expose OpenAI key to os.environ so the Agents SDK can find it
+    os.environ["OPENAI_API_KEY"] = settings.openai_api_key
+
     # Startup
     print(f"Starting {settings.app_name} v{settings.app_version}")
     print(f"Environment: {settings.environment}")
@@ -63,6 +68,12 @@ app.include_router(tags.router)
 
 # Include statistics router
 app.include_router(statistics.router)
+
+# Task: T014 - Include chat router
+app.include_router(chat.router)
+
+# Include ChatKit session router
+app.include_router(chatkit_session.router)
 
 
 # Root endpoint

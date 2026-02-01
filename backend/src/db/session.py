@@ -14,14 +14,26 @@ from sqlmodel import SQLModel
 from src.config import settings
 
 # Task: T012 - Create async engine with connection pooling
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,  # Log SQL queries in debug mode
-    pool_size=10,  # Minimum number of connections in pool
-    max_overflow=20,  # Maximum additional connections beyond pool_size
-    pool_pre_ping=True,  # Verify connection health before use (Neon serverless compatibility)
-    pool_recycle=3600,  # Recycle connections after 1 hour (Neon idle timeout)
-)
+# SQLite doesn't support pooling parameters, so use conditional configuration
+_is_sqlite = "sqlite" in settings.database_url.lower()
+
+if _is_sqlite:
+    # SQLite configuration (for tests)
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,
+        connect_args={"check_same_thread": False},  # SQLite specific
+    )
+else:
+    # PostgreSQL configuration (for production)
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,  # Log SQL queries in debug mode
+        pool_size=10,  # Minimum number of connections in pool
+        max_overflow=20,  # Maximum additional connections beyond pool_size
+        pool_pre_ping=True,  # Verify connection health before use (Neon serverless compatibility)
+        pool_recycle=3600,  # Recycle connections after 1 hour (Neon idle timeout)
+    )
 
 # Task: T013 - Create async session factory
 AsyncSessionLocal = async_sessionmaker(
