@@ -27,15 +27,22 @@ export default function HomePage() {
                 priority
               />
               <div className="flex flex-col -space-y-0.5">
-                <span className="text-h4 font-semibold text-content-primary">Fehrist</span>
-                <span className="text-[11px] text-content-tertiary font-medium">فہرست</span>
+                <span className="text-h4 font-semibold text-content-primary">
+                  Fehrist
+                </span>
+                <span className="text-[11px] text-content-tertiary font-medium">
+                  فہرست
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/auth/sign-in" className="btn-ghost btn-sm">
                 Sign In
               </Link>
-              <Link href="/auth/sign-up" className="btn-primary btn-sm hidden sm:flex">
+              <Link
+                href="/auth/sign-up"
+                className="btn-primary btn-sm hidden sm:flex"
+              >
                 Get Started
               </Link>
             </div>
@@ -61,17 +68,23 @@ export default function HomePage() {
 
             {/* Subheading */}
             <p className="text-body-lg text-content-secondary max-w-2xl mx-auto mb-10 animate-slide-up animation-delay-200">
-              Fehrist helps you capture, organize, and accomplish your tasks with
-              an intuitive interface designed for the way you work.
+              Fehrist helps you capture, organize, and accomplish your tasks
+              with an intuitive interface designed for the way you work.
             </p>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-slide-up animation-delay-300">
-              <Link href="/auth/sign-up" className="btn-primary w-full sm:w-auto">
+              <Link
+                href="/auth/sign-up"
+                className="btn-primary w-full sm:w-auto"
+              >
                 Get Started Free
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <Link href="/auth/sign-in" className="btn-secondary w-full sm:w-auto">
+              <Link
+                href="/auth/sign-in"
+                className="btn-secondary w-full sm:w-auto"
+              >
                 Sign In
               </Link>
             </div>
@@ -86,7 +99,8 @@ export default function HomePage() {
                   Lightning Fast
                 </h3>
                 <p className="text-body-sm text-content-secondary">
-                  Create and manage tasks in seconds with our streamlined interface
+                  Create and manage tasks in seconds with our streamlined
+                  interface
                 </p>
               </div>
 
@@ -98,7 +112,8 @@ export default function HomePage() {
                   Secure & Private
                 </h3>
                 <p className="text-body-sm text-content-secondary">
-                  Your data is encrypted and secure. We never sell your information
+                  Your data is encrypted and secure. We never sell your
+                  information
                 </p>
               </div>
 

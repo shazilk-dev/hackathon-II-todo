@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Input from "@/components/ui/Input";
 import { validateEmail, validatePassword, debounce } from "@/lib/validation";
-import { Loader2, LogIn, AlertCircle, CheckSquare, CheckCircle2 } from "lucide-react";
+import { Loader2, LogIn, AlertCircle, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 
 function SignInForm() {
   const [email, setEmail] = useState("");
@@ -17,7 +18,11 @@ function SignInForm() {
 
   const { data: sessionData, isPending } = useSession();
   const session = sessionData?.session; // Extract session from the returned data
-  const status = session ? "authenticated" : isPending ? "loading" : "unauthenticated";
+  const status = session
+    ? "authenticated"
+    : isPending
+      ? "loading"
+      : "unauthenticated";
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -25,7 +30,9 @@ function SignInForm() {
   useEffect(() => {
     const success = searchParams.get("success");
     if (success === "account_created") {
-      setSuccessMessage("Account created successfully! Please sign in with your credentials.");
+      setSuccessMessage(
+        "Account created successfully! Please sign in with your credentials.",
+      );
       // Clear the URL parameter after showing message
       window.history.replaceState({}, "", "/auth/sign-in");
     }
@@ -49,7 +56,10 @@ function SignInForm() {
 
   useEffect(() => {
     // Clear error and success message if user starts typing
-    if ((error || successMessage) && (email !== prevEmail || password !== prevPassword)) {
+    if (
+      (error || successMessage) &&
+      (email !== prevEmail || password !== prevPassword)
+    ) {
       setError(null);
       setSuccessMessage(null);
     }
@@ -64,7 +74,7 @@ function SignInForm() {
       setEmailError(result.isValid ? undefined : result.message);
       setEmailSuccess(result.isValid && value ? "Valid email" : undefined);
     }, 500),
-    []
+    [],
   );
 
   // Real-time password validation
@@ -122,12 +132,25 @@ function SignInForm() {
         const errorCode = (error as any).code || "";
 
         // Provide user-friendly error messages based on error code or message
-        if (errorCode === "INVALID_CREDENTIALS" || errorMessage.includes("Invalid") || errorMessage.includes("credentials")) {
+        if (
+          errorCode === "INVALID_CREDENTIALS" ||
+          errorMessage.includes("Invalid") ||
+          errorMessage.includes("credentials")
+        ) {
           setError("Invalid email or password. Please try again.");
-        } else if (errorCode === "USER_NOT_FOUND" || errorMessage.includes("not found") || errorMessage.includes("Credential account not found")) {
+        } else if (
+          errorCode === "USER_NOT_FOUND" ||
+          errorMessage.includes("not found") ||
+          errorMessage.includes("Credential account not found")
+        ) {
           setError("No account found with this email. Please sign up first.");
-        } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-          setError("Network error. Please check your connection and try again.");
+        } else if (
+          errorMessage.includes("network") ||
+          errorMessage.includes("fetch")
+        ) {
+          setError(
+            "Network error. Please check your connection and try again.",
+          );
         } else if (errorMessage.includes("Rate limit")) {
           setError(errorMessage);
         } else {
@@ -144,7 +167,8 @@ function SignInForm() {
       router.push("/dashboard");
     } catch (err) {
       console.error("Sign-in exception:", err);
-      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+      const errorMessage =
+        err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
       setIsSubmitting(false);
     }
@@ -190,14 +214,20 @@ function SignInForm() {
         <div className="max-w-sm w-full space-y-5 relative z-10">
           {/* Logo/Brand Section */}
           <div className="text-center animate-slide-up">
-            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-action-primary mb-4 shadow-md shadow-action-primary/20">
-              <CheckSquare className="w-5 h-5 text-content-inverse" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Fehrist Logo"
+              width={56}
+              height={56}
+              className="w-14 h-14 mx-auto mb-4 object-contain"
+              priority
+            />
             <h1 className="text-xl font-bold text-content-primary mb-1">
               Welcome back
             </h1>
             <p className="text-sm text-content-secondary">
-              Sign in to continue to TaskFlow
+              Sign in to continue to{" "}
+              <span className="font-medium">Fehrist</span>
             </p>
           </div>
 
@@ -305,11 +335,13 @@ function SignInForm() {
 // Wrapper component with Suspense boundary for useSearchParams
 export default function SignInPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-surface-base">
-        <Loader2 className="w-8 h-8 animate-spin text-action-primary" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-surface-base">
+          <Loader2 className="w-8 h-8 animate-spin text-action-primary" />
+        </div>
+      }
+    >
       <SignInForm />
     </Suspense>
   );
