@@ -7,7 +7,7 @@ import Link from "next/link";
 import { LogOut, CheckSquare, User, MessageSquare, LayoutDashboard } from "lucide-react";
 
 export function Header() {
-  const { session, isAuthenticated } = useAuth();
+  const { data: session, isAuthenticated } = useAuth();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -59,7 +59,7 @@ export function Header() {
                 <User className="w-3 h-3 text-action-primary" />
               </div>
               <span className="text-xs text-content-secondary max-w-[150px] truncate">
-                {session?.user?.email}
+                {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
               </span>
             </div>
 

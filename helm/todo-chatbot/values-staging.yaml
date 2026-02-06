@@ -1,0 +1,18 @@
+# Task: T041 [US3]
+# Staging environment overrides (Phase 5 - future cloud deployment)
+# Use with: helm install -f values.yaml -f values-staging.yaml
+
+backend:
+  replicas: 2
+  env:
+    ENVIRONMENT: staging
+    DEBUG: "false"
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+frontend:
+  replicas: 2
+  env:
+    NODE_ENV: production

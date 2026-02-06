@@ -1,0 +1,109 @@
+# Task: T047 [US3]
+# Backend deployment template
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-chatbot.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "todo-chatbot.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "todo-chatbot.backend.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.backend.dapr.enabled }}
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "{{ .Values.backend.dapr.appId }}"
+        dapr.io/app-port: "{{ .Values.backend.dapr.appPort }}"
+        dapr.io/log-level: "{{ .Values.backend.dapr.logLevel }}"
+        dapr.io/enable-metrics: "{{ .Values.backend.dapr.enableMetrics }}"
+        dapr.io/metrics-port: "9090"
+        dapr.io/config: "dapr-config"
+        {{- end }}
+    spec:
+      initContainers:
+        - name: migrations
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "todo-chatbot.fullname" . }}-secrets
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "todo-chatbot.fullname" . }}-config
+
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "todo-chatbot.fullname" . }}-secrets
+                  key: DATABASE_URL
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "todo-chatbot.fullname" . }}-secrets
+                  key: BETTER_AUTH_SECRET
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "todo-chatbot.fullname" . }}-secrets
+                  key: OPENAI_API_KEY
+
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 6
+
+      securityContext:
+        {{- toYaml .Values.securityContext.backend | nindent 8 }}

@@ -117,37 +117,47 @@ export default function SignUpPage() {
     try {
       console.log("Starting sign-up process...");
 
-      const response = await signUp.email({
+      // Better Auth client returns { data, error } format
+      // Note: We disable auto sign-in for better UX flow
+      const { data, error } = await signUp.email({
         name: name.trim(),
         email: email.trim(),
-        password
+        password,
       });
 
-      console.log("Sign-up response:", response);
+      console.log("Sign-up response:", { data, error });
 
       // Check for errors in the response
-      if (response?.error) {
-        console.error("Sign-up error:", response.error);
-        throw new Error(response.error.message || "Failed to create account");
+      if (error) {
+        console.error("Sign-up error:", error);
+
+        // Better Auth error format: { message, status, statusText, code }
+        const errorMessage = error.message || "Failed to create account";
+        const errorCode = (error as any).code || "";
+
+        // Provide user-friendly error messages based on error code or message
+        if (errorCode === "USER_ALREADY_EXISTS" || errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
+          setError("An account with this email already exists. Please sign in instead.");
+        } else if (errorCode === "INVALID_EMAIL" || errorMessage.includes("email")) {
+          setError("Please enter a valid email address.");
+        } else if (errorCode === "WEAK_PASSWORD" || errorMessage.includes("password")) {
+          setError("Password is too weak. Please use a stronger password.");
+        } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+          setError("Network error. Please check your connection and try again.");
+        } else {
+          setError(errorMessage);
+        }
+        setIsLoading(false);
+        return;
       }
 
-      // Success - redirect immediately
-      console.log("Sign-up successful, redirecting to dashboard");
-      router.replace("/dashboard");
+      // Success - redirect to sign-in page with success message
+      console.log("Sign-up successful! Redirecting to sign-in...");
+      router.push("/auth/sign-in?success=account_created");
     } catch (err) {
       console.error("Sign-up exception:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to create account";
-
-      // Provide user-friendly error messages
-      if (errorMessage.includes("already exists") || errorMessage.includes("duplicate") || errorMessage.includes("unique")) {
-        setError("An account with this email already exists. Please sign in instead.");
-      } else if (errorMessage.includes("network") || errorMessage.includes("Network") || errorMessage.includes("fetch")) {
-        setError("Network error. Please check your connection and try again.");
-      } else if (errorMessage.includes("connect") || errorMessage.includes("ECONNREFUSED")) {
-        setError("Cannot connect to authentication server. Please ensure the server is running.");
-      } else {
-        setError(`Account creation failed: ${errorMessage}`);
-      }
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(errorMessage);
       setIsLoading(false);
     }
   };

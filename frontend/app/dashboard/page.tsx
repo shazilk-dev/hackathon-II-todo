@@ -24,7 +24,7 @@ const filterConfig = {
 } as const;
 
 function DashboardContent() {
-  const { session, isLoading: authLoading } = useAuth();
+  const { data: session, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 

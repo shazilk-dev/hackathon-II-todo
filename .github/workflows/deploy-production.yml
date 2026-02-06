@@ -1,0 +1,378 @@
+name: Deploy to Azure AKS Production
+
+# Triggers for this workflow
+on:
+  push:
+    branches:
+      - main  # Auto-deploy on push to main branch
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions UI
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+# Environment variables shared across all jobs
+env:
+  AZURE_RESOURCE_GROUP: hackathon-todo-rg
+  AKS_CLUSTER: hackathon-todo-prod
+  ACR_NAME: hackathontodoacr
+  HELM_CHART_PATH: ./helm/todo-chatbot
+  NAMESPACE: default
+
+# Define permissions for OIDC authentication
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  # Job 1: Run Tests
+  # Ensures code quality before deployment
+  test:
+    name: Run Tests and Linters
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio ruff mypy
+
+      - name: Run backend linter (ruff)
+        working-directory: ./backend
+        run: ruff check .
+
+      - name: Run backend type checker (mypy)
+        working-directory: ./backend
+        run: mypy . --ignore-missing-imports
+
+      - name: Run backend tests
+        working-directory: ./backend
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run frontend linter (ESLint)
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Run frontend type checker
+        working-directory: ./frontend
+        run: npx tsc --noEmit
+
+      - name: Run frontend tests
+        working-directory: ./frontend
+        run: npm test -- --run
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  # Job 2: Build and Push Docker Images
+  # Creates container images and pushes to Azure Container Registry
+  build:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 30
+    outputs:
+      backend_tag: ${{ steps.meta-backend.outputs.tags }}
+      frontend_tag: ${{ steps.meta-frontend.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.ACR_NAME }}.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ACR_NAME }}.azurecr.io/todo-backend
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_NAME }}.azurecr.io/todo-backend:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_NAME }}.azurecr.io/todo-backend:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ACR_NAME }}.azurecr.io/todo-frontend
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_NAME }}.azurecr.io/todo-frontend:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_NAME }}.azurecr.io/todo-frontend:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            NEXT_PUBLIC_API_URL=${{ secrets.PRODUCTION_API_URL }}
+
+      - name: Run Trivy security scan on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ACR_NAME }}.azurecr.io/todo-backend:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy security scan on frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ACR_NAME }}.azurecr.io/todo-frontend:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+  # Job 3: Deploy to AKS
+  # Updates Kubernetes cluster with new images
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.get-url.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER }} \
+            --overwrite-existing
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+
+      - name: Apply Dapr components
+        run: |
+          kubectl apply -f dapr/components/ --namespace ${{ env.NAMESPACE }}
+          kubectl apply -f dapr/configuration/ --namespace ${{ env.NAMESPACE }}
+
+      - name: Deploy with Helm
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+
+          helm upgrade --install hackathon-todo ${{ env.HELM_CHART_PATH }} \
+            --namespace ${{ env.NAMESPACE }} \
+            --values ${{ env.HELM_CHART_PATH }}/values.yaml \
+            --values ${{ env.HELM_CHART_PATH }}/values-prod.yaml \
+            --set backend.image.tag=$IMAGE_TAG \
+            --set frontend.image.tag=$IMAGE_TAG \
+            --set global.environment=production \
+            --wait \
+            --timeout 10m \
+            --atomic \
+            --cleanup-on-fail
+
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/$(kubectl get deployment -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=backend -o name) -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/$(kubectl get deployment -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=frontend -o name) -n ${{ env.NAMESPACE }} --timeout=5m
+
+      - name: Get deployment URL
+        id: get-url
+        run: |
+          FRONTEND_IP=$(kubectl get service -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=frontend -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+          echo "url=http://$FRONTEND_IP" >> $GITHUB_OUTPUT
+          echo "Frontend URL: http://$FRONTEND_IP"
+
+      - name: Run smoke tests
+        run: |
+          # Get frontend URL
+          FRONTEND_IP=$(kubectl get service -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=frontend -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+          FRONTEND_URL="http://$FRONTEND_IP"
+
+          # Wait for LoadBalancer IP to be assigned
+          MAX_WAIT=180
+          COUNTER=0
+          while [ -z "$FRONTEND_IP" ] && [ $COUNTER -lt $MAX_WAIT ]; do
+            echo "Waiting for LoadBalancer IP... ($COUNTER/$MAX_WAIT seconds)"
+            sleep 10
+            FRONTEND_IP=$(kubectl get service -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=frontend -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+            COUNTER=$((COUNTER + 10))
+          done
+
+          if [ -z "$FRONTEND_IP" ]; then
+            echo "❌ LoadBalancer IP not assigned after $MAX_WAIT seconds"
+            exit 1
+          fi
+
+          echo "Frontend URL: $FRONTEND_URL"
+
+          # Smoke test 1: Frontend health check
+          echo "Testing frontend availability..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Frontend is accessible (HTTP $HTTP_STATUS)"
+          else
+            echo "❌ Frontend health check failed (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+
+          # Smoke test 2: Backend health check
+          echo "Testing backend health endpoint..."
+          BACKEND_POD=$(kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/component=backend -o jsonpath='{.items[0].metadata.name}')
+          BACKEND_HEALTH=$(kubectl exec -n ${{ env.NAMESPACE }} $BACKEND_POD -- curl -s http://localhost:8000/health || echo "{}")
+
+          if echo "$BACKEND_HEALTH" | grep -q "healthy"; then
+            echo "✅ Backend health check passed"
+          else
+            echo "❌ Backend health check failed"
+            echo "Response: $BACKEND_HEALTH"
+            exit 1
+          fi
+
+          # Smoke test 3: Database connectivity
+          echo "Testing database connectivity..."
+          if echo "$BACKEND_HEALTH" | grep -q "database.*connected"; then
+            echo "✅ Database connection verified"
+          else
+            echo "⚠️  Could not verify database connection from health check"
+          fi
+
+          echo "All smoke tests passed! ✅"
+
+      - name: Get deployment info
+        if: success()
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Image Tag: ${{ github.sha }}"
+          echo ""
+          echo "Pods:"
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "Services:"
+          kubectl get services -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "HPA Status:"
+          kubectl get hpa -n ${{ env.NAMESPACE }}
+
+  # Job 4: Notify
+  # Sends deployment status notifications
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [test, build, deploy]
+    if: always()
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST $SLACK_WEBHOOK_URL \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "${{ steps.status.outputs.emoji }} Production Deployment ${{ steps.status.outputs.status }}",
+              "attachments": [{
+                "color": "${{ steps.status.outputs.color }}",
+                "fields": [
+                  {"title": "Environment", "value": "Production", "short": true},
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Status", "value": "${{ steps.status.outputs.status }}", "short": true}
+                ]
+              }]
+            }'
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && needs.deploy.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Successfully deployed to production!\n\nDeployment URL: ${{ needs.deploy.outputs.url }}'
+            })

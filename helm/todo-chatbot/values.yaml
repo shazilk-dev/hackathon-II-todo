@@ -1,0 +1,82 @@
+# Task: T039 [US3]
+# Default values for todo-chatbot Helm chart
+# This is a YAML-formatted file declaring variables to be passed into templates
+# Configuration for development environment (local Minikube)
+
+# Global settings
+namespace: todo-chatbot
+
+# Backend configuration (FastAPI)
+backend:
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  env:
+    ENVIRONMENT: development
+    DEBUG: "true"
+    CORS_ORIGINS: '["http://localhost:3000","http://todo-frontend-service:3000"]'
+
+  # Horizontal Pod Autoscaler
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Frontend configuration (Next.js)
+frontend:
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  env:
+    NEXT_PUBLIC_API_URL: "http://todo-backend-service:8000"
+    NODE_ENV: "production"
+
+# Secrets (MUST be overridden at install time via --set flags)
+secrets:
+  DATABASE_URL: ""  # Override with: --set secrets.DATABASE_URL=<value>
+  BETTER_AUTH_SECRET: ""  # Override with: --set secrets.BETTER_AUTH_SECRET=<value>
+  OPENAI_API_KEY: ""  # Override with: --set secrets.OPENAI_API_KEY=<value>
+
+# Security context
+securityContext:
+  backend:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  frontend:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001

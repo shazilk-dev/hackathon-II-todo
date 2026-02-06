@@ -1,0 +1,36 @@
+# Task: T038 [US3]
+# Patterns to ignore when building packages
+
+# Version control
+.git/
+.gitignore
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+.github/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+tests/
+*.test.yaml
+
+# Documentation (except README)
+*.md
+!README.md
+docs/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# OS files
+.DS_Store
+Thumbs.db

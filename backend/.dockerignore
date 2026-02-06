@@ -1,18 +1,67 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+.venv.bak/
+venv/
+ENV/
+env/
+
+# Environment files (secrets should never be in images)
 .env
 .env.*
-__pycache__/
-*.pyc
+!.env.example
+
+# Testing
 .pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
 .mypy_cache/
 .ruff_cache/
-htmlcov/
 coverage.xml
-**/.DS_Store
-.venv/
-.idea/
-.vscode/
 tests/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (exclude except README)
+*.md
+!README.md
+docs/
 TEST_REPORT.md
 BACKEND_FINALIZED.md
 IMPLEMENTATION.md
-README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+**/.DS_Store

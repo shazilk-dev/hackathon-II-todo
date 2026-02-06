@@ -1,0 +1,8 @@
+# Task: T044 [US3]
+# Namespace template
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}

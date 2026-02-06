@@ -1,26 +1,39 @@
 "use client";
 
-import { useState, FormEvent, useCallback, useEffect } from "react";
+import { useState, FormEvent, useCallback, useEffect, Suspense } from "react";
 import { signIn, useSession } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Input from "@/components/ui/Input";
 import { validateEmail, validatePassword, debounce } from "@/lib/validation";
-import { Loader2, LogIn, AlertCircle, CheckSquare } from "lucide-react";
+import { Loader2, LogIn, AlertCircle, CheckSquare, CheckCircle2 } from "lucide-react";
 
-export default function SignInPage() {
+function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const { data: session, status } = useSession();
+  const { data: sessionData, isPending } = useSession();
+  const session = sessionData?.session; // Extract session from the returned data
+  const status = session ? "authenticated" : isPending ? "loading" : "unauthenticated";
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for success message from sign-up
+  useEffect(() => {
+    const success = searchParams.get("success");
+    if (success === "account_created") {
+      setSuccessMessage("Account created successfully! Please sign in with your credentials.");
+      // Clear the URL parameter after showing message
+      window.history.replaceState({}, "", "/auth/sign-in");
+    }
+  }, [searchParams]);
 
   // Redirect if already authenticated
   useEffect(() => {
     if (status === "authenticated" && session) {
-      console.log("User already authenticated, redirecting to dashboard");
       router.replace("/dashboard");
     }
   }, [session, status, router]);
@@ -35,13 +48,14 @@ export default function SignInPage() {
   const [prevPassword, setPrevPassword] = useState(password);
 
   useEffect(() => {
-    // Only clear error if user actually changed the input (not just on mount or error set)
-    if (error && (email !== prevEmail || password !== prevPassword)) {
+    // Clear error and success message if user starts typing
+    if ((error || successMessage) && (email !== prevEmail || password !== prevPassword)) {
       setError(null);
+      setSuccessMessage(null);
     }
     setPrevEmail(email);
     setPrevPassword(password);
-  }, [email, password, error, prevEmail, prevPassword]);
+  }, [email, password, error, successMessage, prevEmail, prevPassword]);
 
   // Debounced email validation
   const validateEmailDebounced = useCallback(
@@ -90,51 +104,56 @@ export default function SignInPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError(null);
 
     try {
-      console.log("Starting sign-in process...");
-
-      const response = await signIn("credentials", {
+      // Better Auth client returns { data, error } format
+      const { data, error } = await signIn.email({
         email: email.trim(),
         password,
-        redirect: false,
       });
 
-      console.log("Sign-in response:", response);
+      if (error) {
+        // Better Auth error format: { message, status, statusText, code }
+        console.error("Sign-in error:", error);
 
-      // Check for errors in the response
-      if (response?.error) {
-        console.error("Sign-in error:", response.error);
-        throw new Error(response.error || "Failed to sign in");
+        const errorMessage = error.message || "Failed to sign in";
+        const errorCode = (error as any).code || "";
+
+        // Provide user-friendly error messages based on error code or message
+        if (errorCode === "INVALID_CREDENTIALS" || errorMessage.includes("Invalid") || errorMessage.includes("credentials")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (errorCode === "USER_NOT_FOUND" || errorMessage.includes("not found") || errorMessage.includes("Credential account not found")) {
+          setError("No account found with this email. Please sign up first.");
+        } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+          setError("Network error. Please check your connection and try again.");
+        } else if (errorMessage.includes("Rate limit")) {
+          setError(errorMessage);
+        } else {
+          setError(errorMessage);
+        }
+        setIsSubmitting(false);
+        return;
       }
 
-      // Success - redirect immediately
-      console.log("Sign-in successful, redirecting to dashboard");
-      router.replace("/dashboard");
+      // Success - manually redirect to dashboard
+      console.log("Sign-in successful! Redirecting to dashboard...");
+
+      // Use router.push for immediate redirect (no loading stuck)
+      router.push("/dashboard");
     } catch (err) {
       console.error("Sign-in exception:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to sign in";
-
-      // Provide user-friendly error messages
-      if (errorMessage.includes("Invalid credentials") || errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("CredentialsSignin")) {
-        setError("Invalid email or password. Please try again.");
-      } else if (errorMessage.includes("network") || errorMessage.includes("Network") || errorMessage.includes("fetch")) {
-        setError("Network error. Please check your connection and try again.");
-      } else if (errorMessage.includes("connect") || errorMessage.includes("ECONNREFUSED")) {
-        setError("Cannot connect to authentication server. Please ensure the server is running.");
-      } else {
-        setError(`Authentication failed: ${errorMessage}`);
-      }
-      setIsLoading(false);
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(errorMessage);
+      setIsSubmitting(false);
     }
   };
 
   const isFormValid = email && password && !emailError && !passwordError;
 
   // Show loading while checking session
-  if (status === "loading") {
+  if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-base">
         <div className="flex flex-col items-center gap-3">
@@ -148,7 +167,7 @@ export default function SignInPage() {
   return (
     <>
       {/* Fullscreen Loading Overlay */}
-      {isLoading && (
+      {isSubmitting && (
         <div className="fixed inset-0 bg-surface-base/80 backdrop-blur-md z-50 flex items-center justify-center">
           <div className="card-glass p-5 flex flex-col items-center gap-3 animate-scale-in">
             <div className="w-10 h-10 rounded-xl bg-action-primary flex items-center justify-center">
@@ -185,6 +204,15 @@ export default function SignInPage() {
           {/* Form Card */}
           <div className="bg-surface-raised rounded-xl p-5 border border-border-subtle shadow-sm animate-slide-up animation-delay-100">
             {/* Global Error/Success Messages */}
+            {successMessage && (
+              <div className="rounded-lg bg-state-success-light p-2.5 border border-state-success/20 mb-4 animate-slide-down">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-state-success mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-state-success">{successMessage}</p>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="rounded-lg bg-state-error-light p-2.5 border border-state-error/20 mb-4 animate-slide-down">
                 <div className="flex items-start gap-2">
@@ -209,7 +237,7 @@ export default function SignInPage() {
                 error={emailError}
                 success={emailSuccess}
                 showValidation
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
 
               {/* Password Input */}
@@ -224,7 +252,7 @@ export default function SignInPage() {
                 value={password}
                 onChangeValidation={handlePasswordChange}
                 error={passwordError}
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
 
               {/* Forgot Password Link - disabled until implemented */}
@@ -240,10 +268,10 @@ export default function SignInPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading || !isFormValid}
+                disabled={isSubmitting || !isFormValid}
                 className="flex items-center justify-center gap-1.5 w-full h-9 text-xs font-medium text-content-inverse bg-action-primary hover:bg-action-primary-hover rounded-full disabled:opacity-50 transition-all"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     Signing in...
@@ -271,5 +299,18 @@ export default function SignInPage() {
         </div>
       </div>
     </>
+  );
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-surface-base">
+        <Loader2 className="w-8 h-8 animate-spin text-action-primary" />
+      </div>
+    }>
+      <SignInForm />
+    </Suspense>
   );
 }

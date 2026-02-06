@@ -1,0 +1,64 @@
+# Task: T049 [US3]
+# Frontend deployment template
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-chatbot.fullname" . }}-frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "todo-chatbot.frontend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "todo-chatbot.frontend.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.frontend.dapr.enabled }}
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "{{ .Values.frontend.dapr.appId }}"
+        dapr.io/app-port: "{{ .Values.frontend.dapr.appPort }}"
+        dapr.io/log-level: "{{ .Values.frontend.dapr.logLevel }}"
+        dapr.io/config: "dapr-config"
+        {{- end }}
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "todo-chatbot.fullname" . }}-config
+
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+
+      securityContext:
+        {{- toYaml .Values.securityContext.frontend | nindent 8 }}

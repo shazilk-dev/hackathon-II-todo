@@ -1,0 +1,16 @@
+# Task: T040 [US3]
+# Development environment overrides
+# Use with: helm install -f values.yaml -f values-dev.yaml
+
+backend:
+  replicas: 1  # Single replica for dev
+  env:
+    ENVIRONMENT: development
+    DEBUG: "true"
+  hpa:
+    enabled: false  # Disable autoscaling in dev
+
+frontend:
+  replicas: 1
+  env:
+    NODE_ENV: development

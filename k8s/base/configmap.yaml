@@ -1,0 +1,23 @@
+# Task: T021 [US2]
+# ConfigMap for non-sensitive configuration
+# Stores environment-specific settings that can be updated without rebuilding images
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-chatbot-config
+  namespace: todo-chatbot
+  labels:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/component: configuration
+data:
+  # Application environment
+  ENVIRONMENT: "development"
+  DEBUG: "true"
+
+  # CORS configuration
+  CORS_ORIGINS: '["http://localhost:3000","http://todo-frontend-service:3000"]'
+
+  # Frontend configuration
+  NEXT_PUBLIC_API_URL: "http://todo-backend-service:8000"
+  NODE_ENV: "production"

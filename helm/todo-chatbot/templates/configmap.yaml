@@ -1,0 +1,16 @@
+# Task: T045 [US3]
+# ConfigMap template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "todo-chatbot.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configuration
+data:
+  ENVIRONMENT: {{ .Values.backend.env.ENVIRONMENT | quote }}
+  DEBUG: {{ .Values.backend.env.DEBUG | quote }}
+  CORS_ORIGINS: {{ .Values.backend.env.CORS_ORIGINS | quote }}
+  NEXT_PUBLIC_API_URL: {{ .Values.frontend.env.NEXT_PUBLIC_API_URL | quote }}
+  NODE_ENV: {{ .Values.frontend.env.NODE_ENV | quote }}

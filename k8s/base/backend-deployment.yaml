@@ -1,0 +1,119 @@
+# Task: T023, T024 [US2]
+# Backend (FastAPI) deployment with resource limits, health probes, and init container for migrations
+# 2 replicas for high availability
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+  namespace: todo-chatbot
+  labels:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: hackathon-todo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: todo-chatbot
+        app.kubernetes.io/component: backend
+    spec:
+      # Task T024: Init container for database migrations
+      initContainers:
+        - name: migrations
+          image: todo-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+      containers:
+        - name: backend
+          image: todo-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          # Environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: todo-chatbot-config
+
+          # Sensitive environment variables from Secret
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: DATABASE_URL
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: BETTER_AUTH_SECRET
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: OPENAI_API_KEY
+
+          # Task T023: Resource limits (Guaranteed QoS)
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # Task T023: Liveness probe - detects deadlocks, restarts unresponsive containers
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Task T023: Readiness probe - removes unhealthy pods from service endpoints
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+
+          # Task T023: Startup probe - handles slow container initialization (migrations)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 6  # 30 seconds total (5s * 6)
+
+      # Security context - non-root user enforced
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000

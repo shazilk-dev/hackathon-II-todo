@@ -1,0 +1,40 @@
+Task: T052 [US3]
+Post-install instructions for todo-chatbot Helm chart
+
+🎉 Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ .Values.namespace }}
+
+📊 Check the deployment status:
+
+  kubectl get pods -n {{ .Values.namespace }}
+  kubectl get services -n {{ .Values.namespace }}
+  {{- if .Values.backend.hpa.enabled }}
+  kubectl get hpa -n {{ .Values.namespace }}
+  {{- end }}
+
+🌐 Access the application:
+
+  Method 1 - Minikube Service (Recommended for local development):
+    minikube service {{ include "todo-chatbot.fullname" . }}-frontend -n {{ .Values.namespace }}
+
+  Method 2 - Port Forwarding:
+    kubectl port-forward -n {{ .Values.namespace }} service/{{ include "todo-chatbot.fullname" . }}-frontend 3000:3000
+
+  Then open: http://localhost:3000
+
+🔍 View logs:
+
+  Backend:  kubectl logs -n {{ .Values.namespace }} -l app.kubernetes.io/component=backend -f
+  Frontend: kubectl logs -n {{ .Values.namespace }} -l app.kubernetes.io/component=frontend -f
+
+🛠️  Useful commands:
+
+  Scale backend:     kubectl scale deployment {{ include "todo-chatbot.fullname" . }}-backend --replicas=3 -n {{ .Values.namespace }}
+  Delete deployment: helm uninstall {{ .Release.Name }} -n {{ .Values.namespace }}
+  Upgrade release:   helm upgrade {{ .Release.Name }} ./helm/todo-chatbot -f helm/todo-chatbot/values.yaml
+
+📚 Documentation: See README-PHASE4.md for detailed instructions
+
+Happy chatbot-ing! 🤖

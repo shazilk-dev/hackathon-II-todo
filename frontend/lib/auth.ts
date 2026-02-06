@@ -1,133 +1,56 @@
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { db, withRetry } from "./db";
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
-import { users, accounts } from "./auth-schema";
+import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+import { Pool } from "pg";
 
-// Validate required environment variables
-if (!process.env.AUTH_SECRET) {
-  throw new Error("AUTH_SECRET environment variable is required");
-}
-
-console.log("Initializing Auth.js with Neon database");
-
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  // Trust host for development (required for NextAuth v5)
-  trustHost: true,
-
-  // Session strategy - use JWT for serverless compatibility (no database needed)
-  session: {
-    strategy: "jwt",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  },
-
-  // Authentication providers
-  providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          console.error("❌ Missing email or password");
-          return null;
-        }
-
-        try {
-          console.log("🔍 Looking for user:", credentials.email);
-
-          // Find user by email (with retry for Neon cold starts)
-          const [user] = await withRetry(async () => {
-            return db
-              .select()
-              .from(users)
-              .where(eq(users.email, credentials.email as string))
-              .limit(1);
-          });
-
-          if (!user) {
-            console.error("❌ User not found:", credentials.email);
-            return null;
-          }
-
-          console.log("✅ User found:", user.id);
-
-          // Get password from accounts table (with retry for Neon cold starts)
-          const [account] = await withRetry(async () => {
-            return db
-              .select()
-              .from(accounts)
-              .where(eq(accounts.userId, user.id))
-              .limit(1);
-          });
-
-          if (!account?.password) {
-            console.error("❌ No password found for user:", user.id);
-            return null;
-          }
-
-          console.log("✅ Account found, verifying password...");
-
-          // Verify password
-          const isPasswordValid = await bcrypt.compare(
-            credentials.password as string,
-            account.password
-          );
-
-          if (!isPasswordValid) {
-            console.error("❌ Invalid password for user:", user.id);
-            return null;
-          }
-
-          console.log("✅ Password valid, authentication successful");
-
-          // Return user object (will be encoded in JWT)
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-          };
-        } catch (error) {
-          console.error("❌ Auth error:", error);
-          return null;
-        }
-      },
-    }),
-  ],
-
-  // Callbacks for JWT and session
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-      }
-      return session;
-    },
-  },
-
-  // Pages
-  pages: {
-    signIn: "/auth/sign-in",
-    signOut: "/auth/sign-out",
-    error: "/auth/error",
-  },
-
-  // Secret for JWT signing
-  secret: process.env.AUTH_SECRET,
+// Create PostgreSQL connection pool
+// Using standard 'pg' package for Better Auth compatibility
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL!,
+  ssl: { rejectUnauthorized: false }, // Neon requires SSL
 });
 
-console.log("Auth.js initialized successfully");
+// Create Better Auth instance with PostgreSQL Pool
+// This is the standard approach from Better Auth docs
+export const auth = betterAuth({
+  database: pool,
+  secret: process.env.BETTER_AUTH_SECRET!,
+  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BASE_URL,
+  trustHost: true,
+
+  // Session configuration
+  session: {
+    expiresIn: 7 * 24 * 60 * 60, // 7 days
+    updateAge: 24 * 60 * 60, // Update session every 24 hours
+  },
+
+  // Email & password authentication
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false, // For hackathon simplicity
+    minPasswordLength: 8,
+    autoSignIn: false, // Industry standard: manual sign-in after signup
+  },
+
+  // Account linking
+  account: {
+    accountLinking: {
+      enabled: true,
+    },
+  },
+
+  // User configuration (Better Auth manages user table automatically)
+  user: {},
+
+  // API endpoints
+  socialProviders: {
+    // Add social providers if needed later
+  },
+
+  // Plugins (nextCookies must be last)
+  plugins: [
+    nextCookies(), // Automatically handles Set-Cookie headers in server actions
+  ],
+});
 
 // Export types
-export type { Session } from "next-auth";
+export type { Session } from "better-auth";

@@ -1,0 +1,294 @@
+# Helm Values Schema for todo-chatbot Chart
+# This schema validates values.yaml and values-{env}.yaml files
+
+$schema: "http://json-schema.org/draft-07/schema#"
+type: object
+required:
+  - backend
+  - frontend
+  - secrets
+
+properties:
+  # Backend Configuration
+  backend:
+    type: object
+    required:
+      - image
+      - replicas
+      - service
+      - env
+    properties:
+      image:
+        type: object
+        required:
+          - repository
+          - tag
+          - pullPolicy
+        properties:
+          repository:
+            type: string
+            pattern: "^[a-z0-9-]+$"
+            description: "Docker image repository name"
+            example: "todo-backend"
+          tag:
+            type: string
+            pattern: "^[a-zA-Z0-9._-]+$"
+            description: "Image tag (version identifier)"
+            example: "latest"
+          pullPolicy:
+            type: string
+            enum: ["Always", "IfNotPresent", "Never"]
+            default: "IfNotPresent"
+            description: "Image pull policy"
+
+      replicas:
+        type: integer
+        minimum: 1
+        maximum: 10
+        default: 2
+        description: "Number of backend pod replicas"
+
+      service:
+        type: object
+        required:
+          - type
+          - port
+        properties:
+          type:
+            type: string
+            enum: ["ClusterIP", "NodePort", "LoadBalancer"]
+            default: "ClusterIP"
+            description: "Kubernetes Service type"
+          port:
+            type: integer
+            minimum: 1
+            maximum: 65535
+            default: 8000
+            description: "Service port"
+
+      resources:
+        type: object
+        required:
+          - requests
+          - limits
+        properties:
+          requests:
+            type: object
+            required:
+              - cpu
+              - memory
+            properties:
+              cpu:
+                type: string
+                pattern: "^[0-9]+m$"
+                description: "CPU request in millicores"
+                example: "500m"
+              memory:
+                type: string
+                pattern: "^[0-9]+(Mi|Gi)$"
+                description: "Memory request"
+                example: "512Mi"
+          limits:
+            type: object
+            required:
+              - cpu
+              - memory
+            properties:
+              cpu:
+                type: string
+                pattern: "^[0-9]+m$"
+                description: "CPU limit in millicores"
+                example: "500m"
+              memory:
+                type: string
+                pattern: "^[0-9]+(Mi|Gi)$"
+                description: "Memory limit"
+                example: "512Mi"
+
+      env:
+        type: object
+        required:
+          - ENVIRONMENT
+          - DEBUG
+        properties:
+          ENVIRONMENT:
+            type: string
+            enum: ["development", "staging", "production"]
+            default: "development"
+            description: "Application environment"
+          DEBUG:
+            type: string
+            enum: ["true", "false"]
+            default: "true"
+            description: "Enable debug mode"
+          CORS_ORIGINS:
+            type: string
+            description: "Comma-separated CORS origins"
+            example: "http://localhost:3000,http://localhost:3001"
+
+      hpa:
+        type: object
+        required:
+          - enabled
+        properties:
+          enabled:
+            type: boolean
+            default: true
+            description: "Enable Horizontal Pod Autoscaler"
+          minReplicas:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 2
+            description: "Minimum replicas for HPA"
+          maxReplicas:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+            description: "Maximum replicas for HPA"
+          targetCPUUtilizationPercentage:
+            type: integer
+            minimum: 10
+            maximum: 100
+            default: 70
+            description: "Target CPU utilization percentage"
+
+  # Frontend Configuration
+  frontend:
+    type: object
+    required:
+      - image
+      - replicas
+      - service
+    properties:
+      image:
+        type: object
+        required:
+          - repository
+          - tag
+          - pullPolicy
+        properties:
+          repository:
+            type: string
+            pattern: "^[a-z0-9-]+$"
+            description: "Docker image repository name"
+            example: "todo-frontend"
+          tag:
+            type: string
+            pattern: "^[a-zA-Z0-9._-]+$"
+            description: "Image tag"
+            example: "latest"
+          pullPolicy:
+            type: string
+            enum: ["Always", "IfNotPresent", "Never"]
+            default: "IfNotPresent"
+
+      replicas:
+        type: integer
+        minimum: 1
+        maximum: 5
+        default: 1
+        description: "Number of frontend pod replicas"
+
+      service:
+        type: object
+        required:
+          - type
+          - port
+        properties:
+          type:
+            type: string
+            enum: ["ClusterIP", "NodePort", "LoadBalancer"]
+            default: "ClusterIP"
+          port:
+            type: integer
+            minimum: 1
+            maximum: 65535
+            default: 3000
+
+      resources:
+        type: object
+        required:
+          - requests
+          - limits
+        properties:
+          requests:
+            type: object
+            required:
+              - cpu
+              - memory
+            properties:
+              cpu:
+                type: string
+                pattern: "^[0-9]+m$"
+                default: "250m"
+              memory:
+                type: string
+                pattern: "^[0-9]+(Mi|Gi)$"
+                default: "256Mi"
+          limits:
+            type: object
+            required:
+              - cpu
+              - memory
+            properties:
+              cpu:
+                type: string
+                pattern: "^[0-9]+m$"
+                default: "250m"
+              memory:
+                type: string
+                pattern: "^[0-9]+(Mi|Gi)$"
+                default: "256Mi"
+
+      env:
+        type: object
+        properties:
+          NEXT_PUBLIC_API_URL:
+            type: string
+            format: uri
+            description: "Backend API URL"
+            example: "http://todo-backend-service:8000"
+          NODE_ENV:
+            type: string
+            enum: ["development", "production"]
+            default: "production"
+
+  # Secrets (values provided at install time)
+  secrets:
+    type: object
+    required:
+      - DATABASE_URL
+      - BETTER_AUTH_SECRET
+      - OPENAI_API_KEY
+    properties:
+      DATABASE_URL:
+        type: string
+        description: "PostgreSQL connection string (postgresql+asyncpg://...)"
+        pattern: "^postgresql\\+asyncpg://.+"
+        example: "postgresql+asyncpg://user:pass@host:5432/db"
+      BETTER_AUTH_SECRET:
+        type: string
+        minLength: 32
+        description: "JWT signing secret (minimum 32 characters)"
+        example: "DYzLOUg2P7Tk03JxLmIItv7dvBLyyMTzr43yOOUBWJc="
+      OPENAI_API_KEY:
+        type: string
+        pattern: "^sk-proj-.+"
+        description: "OpenAI API key"
+        example: "sk-proj-..."
+
+  # Global Settings
+  namespace:
+    type: string
+    pattern: "^[a-z0-9-]+$"
+    default: "todo-chatbot"
+    description: "Kubernetes namespace"
+
+  imagePullSecrets:
+    type: array
+    items:
+      type: string
+    description: "Image pull secrets (for private registries)"
+    default: []

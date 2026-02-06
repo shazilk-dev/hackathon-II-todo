@@ -1,0 +1,12 @@
+# Task: T020 [US2]
+# Kubernetes namespace for todo-chatbot application
+# Isolates resources in dedicated namespace
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: todo-chatbot
+  labels:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/part-of: hackathon-todo
+    app.kubernetes.io/managed-by: kubectl

@@ -3,10 +3,7 @@ import { getSession } from "./auth-client";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:3000";
 
-// Log API URL for debugging (only in development or when there's an issue)
-if (typeof window !== 'undefined') {
-  console.log(`[API] Using backend URL: ${API_URL}`);
-}
+// Remove API URL logging
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -22,23 +19,29 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 let tokenFetchPromise: Promise<{ token: string; expiresAt: number }> | null = null;
 
 async function getAuthHeaders(): Promise<HeadersInit> {
-  // First verify we have a NextAuth session
-  const session = await getSession();
+  // First verify we have a Better Auth session
+  const sessionResult = await getSession();
 
-  if (!session?.user) {
+  // Better Auth getSession returns { data: { user, session } } or { error }
+  const session = sessionResult as any;
+
+  if (!session?.data?.user) {
     throw new ApiError(401, "Not authenticated");
   }
 
-  // Check if we have a valid cached token
+  // Check if we have a valid cached token and if it needs refresh
   const now = Date.now() / 1000;
+
+  // If we have a valid cached token (not expired or expiring soon), use it
   if (cachedToken && cachedToken.expiresAt > now + 300) {
-    // Token is still valid (with 5 minute buffer)
+    // Token is still valid (with 5-minute buffer)
     return {
       "Authorization": `Bearer ${cachedToken.token}`,
       "Content-Type": "application/json"
     };
   }
 
+  // Token expired or expiring soon - need to refresh
   // If a token fetch is already in progress, wait for it
   if (tokenFetchPromise) {
     try {
@@ -53,20 +56,27 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     }
   }
 
+  // Clear expired cache and fetch a new JWT token
+  cachedToken = null;
+
   // Fetch a new JWT token from our token exchange endpoint
   tokenFetchPromise = (async () => {
     try {
       const tokenResponse = await fetch(`${AUTH_URL}/api/auth/token`, {
-        credentials: "include" // Include NextAuth session cookie
+        credentials: "include" // Include Better Auth session cookie
       });
 
       if (!tokenResponse.ok) {
+        // Better Auth session expired - redirect to login
+        if (tokenResponse.status === 401) {
+          window.location.href = "/auth/sign-in?session_expired=true";
+        }
         throw new ApiError(401, "Failed to get authentication token");
       }
 
       const tokenData = await tokenResponse.json();
 
-      // Cache the token
+      // Cache the new token
       const now = Date.now() / 1000;
       cachedToken = {
         token: tokenData.token,
@@ -76,6 +86,9 @@ async function getAuthHeaders(): Promise<HeadersInit> {
       return cachedToken;
     } catch (error) {
       cachedToken = null; // Clear cache on error
+      if (error instanceof ApiError) {
+        throw error;
+      }
       throw new ApiError(401, "Authentication failed");
     } finally {
       tokenFetchPromise = null; // Clear the promise
@@ -246,7 +259,7 @@ export const api = {
       const url = new URL(`${API_URL}/api/${userId}/tasks`);
       url.searchParams.set("status_filter", status);
 
-      const response = await fetch(url.toString(), { 
+      const response = await fetch(url.toString(), {
         headers,
         cache: 'no-store'
       });

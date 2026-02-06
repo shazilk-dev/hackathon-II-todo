@@ -39,9 +39,12 @@ const STORAGE_KEYS = {
  * ```
  */
 export async function getChatKitClientSecret(): Promise<string> {
-  const session = await getSession();
+  const sessionResult = await getSession();
 
-  if (!session?.user) {
+  // Better Auth getSession returns { data: { user, session } } or { error }
+  const session = sessionResult as any;
+
+  if (!session?.data?.user) {
     throw new Error('Not authenticated. Please log in to access chat.');
   }
 

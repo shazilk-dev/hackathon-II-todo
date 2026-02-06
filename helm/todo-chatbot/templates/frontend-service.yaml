@@ -1,0 +1,19 @@
+# Task: T050 [US3]
+# Frontend service template
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "todo-chatbot.fullname" . }}-frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    {{- include "todo-chatbot.frontend.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.frontend.service.port }}
+      targetPort: 3000

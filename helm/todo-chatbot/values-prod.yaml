@@ -1,0 +1,270 @@
+# STUDENT/HACKATHON BUDGET-OPTIMIZED Configuration for Azure AKS
+# Phase 5 - Cloud Deployment (Budget-Friendly Edition)
+#
+# 💰 COST OPTIMIZED FOR STUDENT SUBSCRIPTIONS
+# Estimated cost: $20-25/month (or $8-10/month with daily stop/start)
+#
+# Changes from production:
+# - Single replica (was 2) - saves 50% pod resources
+# - HPA disabled (was enabled) - no auto-scaling overhead
+# - Reduced CPU/memory limits - fits on smaller/cheaper VMs
+# - pullPolicy: IfNotPresent (was Always) - saves bandwidth
+#
+# Usage:
+#   helm upgrade --install hackathon-todo ./helm/todo-chatbot \
+#     --values ./helm/todo-chatbot/values.yaml \
+#     --values ./helm/todo-chatbot/values-prod.yaml \
+#     --namespace default
+#
+# 💡 SAVE MONEY: Stop cluster when not in use!
+#   ./scripts/stop-cluster.sh  (end of day)
+#   ./scripts/start-cluster.sh (next morning)
+
+# Global Settings
+global:
+  environment: production
+  domain: ""  # Set to your production domain
+
+# Backend Service Configuration (STUDENT/HACKATHON - BUDGET OPTIMIZED)
+backend:
+  name: todo-backend
+  replicas: 1  # Single replica for budget (was 2)
+
+  image:
+    repository: hackathontodoacr.azurecr.io/todo-backend
+    tag: latest  # Overridden by CI/CD with commit SHA
+    pullPolicy: IfNotPresent  # Save bandwidth (was Always)
+
+  service:
+    type: ClusterIP  # Internal service (accessed via Ingress)
+    port: 8000
+    targetPort: 8000
+
+  env:
+    ENVIRONMENT: development  # Changed from production
+    DEBUG: "false"
+    LOG_LEVEL: "info"
+    # CORS origins will be set dynamically
+
+  # Resource Requests and Limits (REDUCED for budget)
+  resources:
+    requests:
+      cpu: "100m"      # Reduced from 250m (burstable VM friendly)
+      memory: "128Mi"  # Reduced from 256Mi
+    limits:
+      cpu: "250m"      # Reduced from 500m
+      memory: "256Mi"  # Reduced from 512Mi
+
+  # Horizontal Pod Autoscaler (DISABLED for budget - can enable later if needed)
+  hpa:
+    enabled: false  # Disabled to save resources (was true)
+    minReplicas: 1  # Reduced from 2
+    maxReplicas: 2  # Reduced from 5
+    targetCPUUtilizationPercentage: 80  # Increased threshold (was 70)
+
+  # Health Probes
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Dapr Configuration
+  dapr:
+    enabled: true
+    appId: todo-backend
+    appPort: "8000"
+    logLevel: "info"
+    enableMetrics: true
+    enableProfiling: false
+
+# Frontend Service Configuration (STUDENT/HACKATHON - BUDGET OPTIMIZED)
+frontend:
+  name: todo-frontend
+  replicas: 1  # Single replica for budget (was 2)
+
+  image:
+    repository: hackathontodoacr.azurecr.io/todo-frontend
+    tag: latest  # Overridden by CI/CD with commit SHA
+    pullPolicy: IfNotPresent  # Save bandwidth (was Always)
+
+  service:
+    type: LoadBalancer  # Public-facing service
+    port: 3000
+    targetPort: 3000
+    # annotations:
+    #   service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+
+  env:
+    NODE_ENV: production
+    NEXT_PUBLIC_API_URL: ""  # Set dynamically after deployment
+
+  # Resource Requests and Limits (REDUCED for budget)
+  resources:
+    requests:
+      cpu: "100m"      # Reduced from 250m
+      memory: "128Mi"  # Reduced from 256Mi
+    limits:
+      cpu: "250m"      # Reduced from 500m
+      memory: "256Mi"  # Reduced from 512Mi
+
+  # Horizontal Pod Autoscaler (DISABLED for budget)
+  hpa:
+    enabled: false  # Disabled to save resources (was true)
+    minReplicas: 1  # Reduced from 2
+    maxReplicas: 2  # Reduced from 5
+    targetCPUUtilizationPercentage: 80  # Increased threshold
+
+  # Health Probes (Next.js default health endpoint)
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+  # Dapr Configuration
+  dapr:
+    enabled: true
+    appId: todo-frontend
+    appPort: "3000"
+    logLevel: "info"
+
+# Ingress Configuration (optional - use if you have a domain)
+ingress:
+  enabled: false  # Set to true when domain is configured
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: todo.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: todo-frontend
+        - path: /api
+          pathType: Prefix
+          service: todo-backend
+  tls:
+    - secretName: todo-tls-cert
+      hosts:
+        - todo.yourdomain.com
+
+# Secrets Configuration
+# Secrets are managed via Kubernetes secrets (created by scripts/setup-secrets.sh)
+secrets:
+  # Reference to existing Kubernetes secrets
+  database:
+    secretName: database-credentials
+    key: connection-string
+
+  openai:
+    secretName: openai-credentials
+    key: api-key
+
+  auth:
+    secretName: auth-credentials
+    key: secret
+
+  redpanda:
+    secretName: redpanda-credentials
+    keys:
+      username: sasl-username
+      password: sasl-password
+      brokers: brokers
+
+# Monitoring and Observability
+monitoring:
+  enabled: true
+
+  # Prometheus ServiceMonitor (if Prometheus is installed)
+  serviceMonitor:
+    enabled: false  # Enable if Prometheus Operator is available
+    interval: 30s
+    scrapeTimeout: 10s
+
+  # Azure Monitor integration
+  azureMonitor:
+    enabled: true
+    workspaceId: ""  # Set to Azure Log Analytics workspace ID
+
+# Security Settings
+security:
+  # Pod Security Context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Container Security Context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false  # Next.js needs write access
+    capabilities:
+      drop:
+        - ALL
+
+  # Network Policies
+  networkPolicy:
+    enabled: false  # Enable for stricter network isolation
+    policyTypes:
+      - Ingress
+      - Egress
+
+# Node Affinity and Tolerations
+affinity: {}
+tolerations: []
+nodeSelector: {}
+
+# Pod Disruption Budget (for high availability)
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1  # At least 1 pod must be available during disruptions
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: hackathon-todo-sa
+
+# Azure-specific Settings
+azure:
+  # Resource Group
+  resourceGroup: hackathon-todo-rg
+
+  # AKS Cluster
+  clusterName: hackathon-todo-prod
+
+  # Azure Container Registry
+  acr:
+    name: hackathontodoacr
+    loginServer: hackathontodoacr.azurecr.io
+
+  # Location
+  location: eastus

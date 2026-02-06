@@ -16,7 +16,7 @@ const filterConfig = {
 } as const;
 
 export function TaskList() {
-  const { session } = useAuth();
+  const { data: session } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

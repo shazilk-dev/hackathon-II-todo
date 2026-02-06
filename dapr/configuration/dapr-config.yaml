@@ -1,0 +1,213 @@
+# Dapr Configuration for Production AKS Deployment
+# Configures global Dapr runtime settings and observability
+#
+# Documentation:
+# - Dapr Configuration: https://docs.dapr.io/operations/configuration/configuration-overview/
+# - Observability: https://docs.dapr.io/operations/observability/
+
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: dapr-config
+  namespace: default
+spec:
+  # Tracing Configuration
+  # Enables distributed tracing for observability
+  tracing:
+    samplingRate: "1"  # Sample 100% of traces in production (adjust as needed)
+    zipkin:
+      endpointAddress: "http://zipkin.default.svc.cluster.local:9411/api/v2/spans"
+
+  # Metrics Configuration
+  # Enables Prometheus metrics collection
+  metric:
+    enabled: true
+
+  # Mutual TLS (mTLS) Configuration
+  # Secures service-to-service communication
+  mtls:
+    enabled: true
+    workloadCertTTL: "24h"
+    allowedClockSkew: "15m"
+
+  # Access Control Configuration
+  # Defines which apps can invoke which operations
+  accessControl:
+    defaultAction: allow  # Default allow (change to deny for stricter security)
+    trustDomain: "public"
+    policies:
+    - appId: todo-backend
+      defaultAction: allow
+      trustDomain: "public"
+      namespace: "default"
+
+  # API Specification
+  # HTTP and gRPC API configurations
+  api:
+    allowed:
+    - name: state
+      version: v1
+      protocol: http
+    - name: pubsub
+      version: v1
+      protocol: http
+    - name: bindings
+      version: v1
+      protocol: http
+    - name: secrets
+      version: v1
+      protocol: http
+    - name: actors
+      version: v1
+      protocol: http
+
+  # Middleware Configuration
+  # HTTP and gRPC middleware pipeline
+  httpPipeline:
+    handlers:
+    - name: oauth2
+      type: middleware.http.oauth2
+    - name: uppercase
+      type: middleware.http.uppercase
+
+  # App Channel Configuration
+  # Retry and timeout settings for app communication
+  appHttpPipeline:
+    handlers:
+    - name: oauth2
+      type: middleware.http.oauth2
+
+  # Secrets Configuration
+  # Deny list for secrets that should not be accessed
+  secrets:
+    scopes:
+    - storeName: kubernetes-secrets
+      defaultAccess: allow
+      allowedSecrets:
+      - database-credentials
+      - openai-credentials
+      - auth-credentials
+      - redpanda-credentials
+      - chatkit-credentials
+
+  # Components Configuration
+  # Component deny list and access control
+  components:
+    deny:
+    - test-component  # Example: deny access to test components in production
+
+  # Name Resolution Configuration
+  # How services discover each other
+  nameResolution:
+    component: "mdns"
+    version: "v1"
+    configuration:
+      spec:
+        - name: "timeout"
+          value: "5s"
+
+---
+
+# Resiliency Configuration
+# Defines retry, timeout, and circuit breaker policies
+
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: dapr-resiliency
+  namespace: default
+spec:
+  policies:
+    # Retry Policies
+    retries:
+      # Default retry policy for all operations
+      defaultRetry:
+        policy: constant
+        duration: 1s
+        maxRetries: 3
+
+      # Retry policy for pub/sub operations
+      pubsubRetry:
+        policy: exponential
+        duration: 1s
+        maxRetries: 5
+        maxInterval: 10s
+
+      # Retry policy for state operations
+      stateRetry:
+        policy: exponential
+        duration: 500ms
+        maxRetries: 3
+        maxInterval: 5s
+
+    # Timeout Policies
+    timeouts:
+      # Default timeout for all operations
+      defaultTimeout: 30s
+
+      # Timeout for pub/sub publish operations
+      pubsubTimeout: 10s
+
+      # Timeout for state operations
+      stateTimeout: 5s
+
+    # Circuit Breaker Policies
+    circuitBreakers:
+      # Default circuit breaker
+      defaultCircuitBreaker:
+        maxRequests: 5
+        interval: 10s
+        timeout: 30s
+        trip: consecutiveFailures > 5
+
+      # Circuit breaker for pub/sub
+      pubsubCircuitBreaker:
+        maxRequests: 3
+        interval: 30s
+        timeout: 60s
+        trip: consecutiveFailures > 3
+
+  # Apply policies to targets
+  targets:
+    # Apply to all apps
+    apps:
+      todo-backend:
+        retry: defaultRetry
+        timeout: defaultTimeout
+        circuitBreaker: defaultCircuitBreaker
+
+    # Apply to components
+    components:
+      task-events-pubsub:
+        outbound:
+          retry: pubsubRetry
+          timeout: pubsubTimeout
+          circuitBreaker: pubsubCircuitBreaker
+
+      task-state:
+        outbound:
+          retry: stateRetry
+          timeout: stateTimeout
+
+---
+
+# Subscription Configuration (optional)
+# Declarative subscriptions to pub/sub topics
+
+# apiVersion: dapr.io/v2alpha1
+# kind: Subscription
+# metadata:
+#   name: task-events-subscription
+#   namespace: default
+# spec:
+#   pubsubname: task-events-pubsub
+#   topic: task-events
+#   routes:
+#     default: /api/events/task-completed
+#   scopes:
+#   - todo-backend
+#   bulkSubscribe:
+#     enabled: true
+#     maxMessagesCount: 100
+#     maxAwaitDurationMs: 1000
+#   deadLetterTopic: task-events-deadletter

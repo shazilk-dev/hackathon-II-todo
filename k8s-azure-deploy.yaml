@@ -1,0 +1,230 @@
+# Azure AKS Deployment - Complete Application Stack
+# Backend + Frontend with proper Azure ACR images and LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+  namespace: default
+  labels:
+    app: todo-chatbot
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: todo-chatbot
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: todo-chatbot
+        component: backend
+      annotations:
+        dapr.io/enabled: "false"
+    spec:
+      containers:
+        - name: backend
+          image: hackathontodoacr.azurecr.io/todo-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: DEBUG
+              value: "false"
+            - name: CORS_ORIGINS
+              value: "http://localhost:3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: database-url
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-credentials
+                  key: secret
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-credentials
+                  key: secret
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-credentials
+                  key: api-key
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-backend-service
+  namespace: default
+  labels:
+    app: todo-chatbot
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: todo-chatbot
+    component: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-frontend
+  namespace: default
+  labels:
+    app: todo-chatbot
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: todo-chatbot
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: todo-chatbot
+        component: frontend
+      annotations:
+        dapr.io/enabled: "false"
+    spec:
+      containers:
+        - name: frontend
+          image: hackathontodoacr.azurecr.io/todo-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://todo-backend-service:8000"
+            - name: NODE_ENV
+              value: "production"
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-credentials
+                  key: secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: frontend-database-credentials
+                  key: database-url
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-frontend-service
+  namespace: default
+  labels:
+    app: todo-chatbot
+    component: frontend
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80          # External port (no :3000 needed in URL!)
+      targetPort: 3000  # Internal container port (Next.js runs on 3000)
+      protocol: TCP
+      name: http
+  selector:
+    app: todo-chatbot
+    component: frontend
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-backend-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-backend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-frontend-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-frontend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

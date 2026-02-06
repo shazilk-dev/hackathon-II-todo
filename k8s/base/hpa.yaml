@@ -1,0 +1,31 @@
+# Task: T028 [US2]
+# Horizontal Pod Autoscaler for backend
+# Scales between 2-5 replicas based on CPU utilization (70% target)
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-backend-hpa
+  namespace: todo-chatbot
+  labels:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/component: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-backend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 minutes before scaling down
+    scaleUp:
+      stabilizationWindowSeconds: 60   # 1 minute before scaling up

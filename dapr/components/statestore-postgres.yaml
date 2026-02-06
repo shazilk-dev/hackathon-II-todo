@@ -1,0 +1,94 @@
+# Dapr State Store Component: PostgreSQL (Neon)
+# Provides distributed state management for idempotency and actor state
+#
+# Uses existing Neon PostgreSQL database for:
+# - Event deduplication (idempotent event processing)
+# - Actor state persistence
+# - Distributed coordination
+#
+# Prerequisites:
+# - Neon PostgreSQL database provisioned
+# - Kubernetes secret 'database-credentials' created
+# - Tables will be auto-created by Dapr on first use
+#
+# Documentation:
+# - Dapr PostgreSQL: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-postgresql/
+# - Neon: https://neon.tech/docs
+
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: task-state
+  namespace: default
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+  # Connection String (from Kubernetes secret)
+  # Neon format: postgresql://<user>:<password>@<host>/<database>?sslmode=require
+  - name: connectionString
+    secretKeyRef:
+      name: database-credentials
+      key: connection-string
+
+  # Table Name for State Store
+  # Dapr will create this table automatically if it doesn't exist
+  - name: tableName
+    value: "dapr_state_store"
+
+  # Metadata Table Name
+  # Stores TTL and other metadata
+  - name: metadataTableName
+    value: "dapr_state_metadata"
+
+  # Timeout for database operations
+  - name: timeout
+    value: "20"  # seconds
+
+  # Cleanup Interval for expired items (TTL)
+  - name: cleanupInterval
+    value: "3600"  # 1 hour
+
+  # Maximum number of retries for transient failures
+  - name: maxRetries
+    value: "3"
+
+  # Retry backoff
+  - name: retryBackoff
+    value: "1s"
+
+  # Connection pool settings
+  - name: maxOpenConns
+    value: "25"  # Maximum open connections
+
+  - name: maxIdleConns
+    value: "5"  # Maximum idle connections
+
+  - name: connMaxLifetime
+    value: "3600"  # Connection lifetime in seconds (1 hour)
+
+  - name: connMaxIdleTime
+    value: "300"  # Max idle time in seconds (5 minutes)
+
+---
+
+# State Store Access Control (Scoped Component)
+# This configuration allows only specific apps to access the state store
+
+# apiVersion: dapr.io/v1alpha1
+# kind: Component
+# metadata:
+#   name: task-state
+#   namespace: default
+# spec:
+#   type: state.postgresql
+#   version: v1
+#   metadata:
+#   - name: connectionString
+#     secretKeyRef:
+#       name: database-credentials
+#       key: connection-string
+#   - name: tableName
+#     value: "dapr_state_store"
+#   scopes:
+#   - todo-backend  # Only allow backend app to access

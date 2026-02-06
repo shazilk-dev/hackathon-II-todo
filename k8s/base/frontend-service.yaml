@@ -1,0 +1,23 @@
+# Task: T027 [US2]
+# Frontend service - ClusterIP for internal communication
+# Exposed externally via Minikube service or port-forward
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-frontend-service
+  namespace: todo-chatbot
+  labels:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: todo-chatbot
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+  sessionAffinity: None

@@ -1,0 +1,116 @@
+# Dapr Pub/Sub Component: Kafka (Redpanda Cloud)
+# Provides event streaming for task events and notifications
+#
+# Redpanda Cloud is Kafka-compatible and provides managed Kafka service
+# This component enables asynchronous event processing for:
+# - Recurring task creation
+# - Task reminders and notifications
+# - Event-driven workflows
+#
+# Prerequisites:
+# - Redpanda Cloud account and cluster provisioned
+# - Kubernetes secret 'redpanda-credentials' created
+# - Topics created in Redpanda: task-events, notifications
+#
+# Documentation:
+# - Dapr Kafka: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
+# - Redpanda Cloud: https://docs.redpanda.com/redpanda-cloud/
+
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: task-events-pubsub
+  namespace: default
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  # Redpanda Cloud Bootstrap Servers
+  # Format: seed-<cluster-id>.cloud.redpanda.com:9092
+  # Get from Redpanda Cloud console
+  - name: brokers
+    secretKeyRef:
+      name: redpanda-credentials
+      key: brokers
+
+  # Consumer Group for subscription
+  - name: consumerGroup
+    value: "hackathon-todo-group"
+
+  # Authentication Type (Redpanda Cloud requires SASL)
+  - name: authType
+    value: "password"
+
+  # SASL Mechanism (Redpanda Cloud supports SCRAM-SHA-256 and SCRAM-SHA-512)
+  - name: saslMechanism
+    secretKeyRef:
+      name: redpanda-credentials
+      key: mechanism
+
+  # SASL Username (from Redpanda Cloud)
+  - name: saslUsername
+    secretKeyRef:
+      name: redpanda-credentials
+      key: sasl-username
+
+  # SASL Password (from Redpanda Cloud)
+  - name: saslPassword
+    secretKeyRef:
+      name: redpanda-credentials
+      key: sasl-password
+
+  # TLS/SSL Configuration
+  # Redpanda Cloud requires TLS
+  - name: skipVerify
+    value: "false"
+
+  # Consumer Configuration
+  - name: maxMessageBytes
+    value: "1024000"  # 1MB max message size
+
+  # Initial offset for new consumers
+  - name: initialOffset
+    value: "newest"  # Start from newest messages (use "oldest" for replay)
+
+  # Enable idempotent producer for exactly-once semantics
+  - name: enableIdempotence
+    value: "true"
+
+  # Delivery guarantee
+  - name: acks
+    value: "all"  # Wait for all replicas to acknowledge
+
+  # Retry configuration
+  - name: retryBackoff
+    value: "100ms"
+
+  - name: maxRetries
+    value: "5"
+
+  # Consumer session timeout
+  - name: sessionTimeout
+    value: "10000"  # 10 seconds
+
+  # Consumer heartbeat interval
+  - name: heartbeatInterval
+    value: "3000"  # 3 seconds
+
+  # Message compression
+  - name: compressionType
+    value: "snappy"  # Compress messages for better performance
+
+---
+
+# Alternative: Pub/Sub Component for Development/Testing
+# Use this for local development without Redpanda Cloud
+# To switch: comment out the above component and uncomment this one
+
+# apiVersion: dapr.io/v1alpha1
+# kind: Component
+# metadata:
+#   name: task-events-pubsub
+#   namespace: default
+# spec:
+#   type: pubsub.in-memory
+#   version: v1
+#   metadata: []

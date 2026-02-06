@@ -70,7 +70,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
 }
 
 export default function ChatPage() {
-  const { session, isLoading: authLoading } = useAuth();
+  const { data: session, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [input, setInput] = useState("");
