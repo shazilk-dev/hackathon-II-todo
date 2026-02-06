@@ -5,9 +5,8 @@ Tag models for categorizing tasks.
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlmodel import Field, Relationship, SQLModel
-
-from src.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from src.models.task import Task
@@ -25,9 +24,12 @@ class Tag(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(
-        foreign_key="user.id",
-        index=True,
-        nullable=False,
+        sa_column=Column(
+            String,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
         description="Owner of the tag (references user.id from Better Auth)",
     )
     name: str = Field(
@@ -47,6 +49,9 @@ class Tag(SQLModel, table=True):
         description="Tag creation timestamp"
     )
 
+    # Relationship back to junction table
+    task_tags: list["TaskTag"] = Relationship(back_populates="tag_rel")
+
 
 class TaskTag(SQLModel, table=True):
     """
@@ -56,15 +61,21 @@ class TaskTag(SQLModel, table=True):
     __tablename__ = "task_tags"
 
     task_id: int = Field(
-        foreign_key="tasks.id",
-        primary_key=True,
-        index=True,
+        sa_column=Column(
+            Integer,
+            ForeignKey("tasks.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
+        ),
         description="Task ID"
     )
     tag_id: int = Field(
-        foreign_key="tags.id",
-        primary_key=True,
-        index=True,
+        sa_column=Column(
+            Integer,
+            ForeignKey("tags.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
+        ),
         description="Tag ID"
     )
     created_at: datetime = Field(
@@ -75,4 +86,4 @@ class TaskTag(SQLModel, table=True):
 
     # Relationships for eager loading
     task_rel: "Task" = Relationship(back_populates="task_tags")
-    tag_rel: Tag = Relationship()
+    tag_rel: "Tag" = Relationship(back_populates="task_tags")

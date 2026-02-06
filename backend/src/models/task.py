@@ -6,7 +6,8 @@ Task model for todo items with user isolation.
 from datetime import datetime
 from typing import Literal, Optional, TYPE_CHECKING
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy import Column, Index, String, ForeignKey
+from sqlmodel import Field, Relationship
 
 from src.models.base import TimestampMixin
 
@@ -30,11 +31,21 @@ class Task(TimestampMixin, table=True):
 
     __tablename__ = "tasks"
 
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        Index("ix_tasks_user_status", "user_id", "status"),
+        Index("ix_tasks_user_completed", "user_id", "completed"),
+        Index("ix_tasks_user_duedate", "user_id", "due_date"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(
-        foreign_key="user.id",  # References Better Auth's 'user' table
-        index=True,
-        nullable=False,
+        sa_column=Column(
+            String,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
         description="Owner of the task (references user.id from Better Auth)",
     )
     title: str = Field(max_length=200, nullable=False, description="Task title")
@@ -62,13 +73,3 @@ class Task(TimestampMixin, table=True):
     task_tags: list["TaskTag"] = Relationship(back_populates="task_rel")
 
     # created_at and updated_at inherited from TimestampMixin
-
-    @property
-    def is_completed(self) -> bool:
-        """
-        Backwards compatibility property.
-
-        Returns True if status is 'done', False otherwise.
-        This maintains compatibility with code using the completed field.
-        """
-        return self.status == "done"

@@ -12,78 +12,83 @@
      =========================================== */
 
   /* Surface Tokens - Background layers */
-  --surface-base: #F8FAFC;        /* Cloud White - foundational */
-  --surface-raised: #FFFFFF;       /* Pure White - elevated cards */
-  --surface-overlay: rgba(255, 255, 255, 0.8);  /* Modal/dropdown overlays */
+  --surface-base: #f8fafc; /* Cloud White - foundational */
+  --surface-raised: #ffffff; /* Pure White - elevated cards */
+  --surface-overlay: rgba(255, 255, 255, 0.8); /* Modal/dropdown overlays */
 
   /* Content Tokens - Text and icons */
-  --text-primary: #0F172A;         /* Midnight Navy - primary text */
-  --text-secondary: #64748B;       /* Slate Blue - secondary text */
-  --text-tertiary: #94A3B8;        /* Light Slate - hints, placeholders */
-  --text-inverse: #FFFFFF;         /* White - on dark backgrounds */
+  --text-primary: #0f172a; /* Midnight Navy - primary text */
+  --text-secondary: #64748b; /* Slate Blue - secondary text */
+  --text-tertiary: #94a3b8; /* Light Slate - hints, placeholders */
+  --text-inverse: #ffffff; /* White - on dark backgrounds */
 
   /* Action Tokens - Interactive elements */
-  --action-primary: #4F46E5;       /* Electric Indigo - main CTAs */
-  --action-primary-hover: #4338CA; /* Darker indigo on hover */
-  --action-secondary: #E0E7FF;     /* Soft Indigo - secondary button bg */
-  --action-secondary-hover: #C7D2FE;
+  --action-primary: #4f46e5; /* Electric Indigo - main CTAs */
+  --action-primary-hover: #4338ca; /* Darker indigo on hover */
+  --action-secondary: #e0e7ff; /* Soft Indigo - secondary button bg */
+  --action-secondary-hover: #c7d2fe;
   --action-ghost: transparent;
-  --action-ghost-hover: #F1F5F9;
+  --action-ghost-hover: #f1f5f9;
 
   /* State Tokens - Feedback colors */
-  --state-success: #0D9488;        /* Teal - success state */
-  --state-success-light: #CCFBF1;
-  --state-warning: #F59E0B;        /* Amber - warning */
-  --state-warning-light: #FEF3C7;
-  --state-error: #DC2626;          /* Red - error */
-  --state-error-light: #FEE2E2;
-  --state-info: #3B82F6;           /* Blue - info */
-  --state-info-light: #DBEAFE;
+  --state-success: #0d9488; /* Teal - success state */
+  --state-success-light: #ccfbf1;
+  --state-warning: #f59e0b; /* Amber - warning */
+  --state-warning-light: #fef3c7;
+  --state-error: #dc2626; /* Red - error */
+  --state-error-light: #fee2e2;
+  --state-info: #3b82f6; /* Blue - info */
+  --state-info-light: #dbeafe;
 
   /* Border Tokens */
-  --border-subtle: #E2E8F0;        /* Light border */
-  --border-default: #CBD5E1;       /* Default border */
-  --border-strong: #94A3B8;        /* Emphasized border */
-  --border-focus: #4F46E5;         /* Focus ring color */
+  --border-subtle: #e2e8f0; /* Light border */
+  --border-default: #cbd5e1; /* Default border */
+  --border-strong: #94a3b8; /* Emphasized border */
+  --border-focus: #4f46e5; /* Focus ring color */
 
   /* Shadow Tokens (colored, not gray) */
   --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+  --shadow-md:
+    0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg:
+    0 10px 15px -3px rgba(15, 23, 42, 0.08),
+    0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl:
+    0 20px 25px -5px rgba(15, 23, 42, 0.1),
+    0 8px 10px -6px rgba(15, 23, 42, 0.05);
   --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.15);
 
   /* ===========================================
      SPACING SYSTEM (8pt Grid)
      =========================================== */
   --space-0: 0;
-  --space-1: 4px;    /* 0.5x - tight grouping */
-  --space-2: 8px;    /* 1x - minimum spacing */
-  --space-3: 12px;   /* 1.5x */
-  --space-4: 16px;   /* 2x - standard padding */
-  --space-5: 20px;   /* 2.5x */
-  --space-6: 24px;   /* 3x - card padding */
-  --space-8: 32px;   /* 4x - section spacing */
-  --space-10: 40px;  /* 5x */
-  --space-12: 48px;  /* 6x - large dividers */
-  --space-16: 64px;  /* 8x - hero spacing */
-  --space-20: 80px;  /* 10x */
-  --space-24: 96px;  /* 12x - mega sections */
+  --space-1: 4px; /* 0.5x - tight grouping */
+  --space-2: 8px; /* 1x - minimum spacing */
+  --space-3: 12px; /* 1.5x */
+  --space-4: 16px; /* 2x - standard padding */
+  --space-5: 20px; /* 2.5x */
+  --space-6: 24px; /* 3x - card padding */
+  --space-8: 32px; /* 4x - section spacing */
+  --space-10: 40px; /* 5x */
+  --space-12: 48px; /* 6x - large dividers */
+  --space-16: 64px; /* 8x - hero spacing */
+  --space-20: 80px; /* 10x */
+  --space-24: 96px; /* 12x - mega sections */
 
   /* ===========================================
      TYPOGRAPHY SCALE (Major Third - 1.25)
      Base: 18px Desktop
      =========================================== */
-  --font-hero: 3.5rem;      /* 56px */
-  --font-h1: 2.75rem;       /* 44px */
-  --font-h2: 2.25rem;       /* 36px */
-  --font-h3: 1.75rem;       /* 28px */
-  --font-h4: 1.375rem;      /* 22px */
-  --font-body-lg: 1.25rem;  /* 20px */
-  --font-body: 1.125rem;    /* 18px - BASE */
-  --font-body-sm: 1rem;     /* 16px */
+  --font-hero: 3.5rem; /* 56px */
+  --font-h1: 2.75rem; /* 44px */
+  --font-h2: 2.25rem; /* 36px */
+  --font-h3: 1.75rem; /* 28px */
+  --font-h4: 1.375rem; /* 22px */
+  --font-body-lg: 1.25rem; /* 20px */
+  --font-body: 1.125rem; /* 18px - BASE */
+  --font-body-sm: 1rem; /* 16px */
   --font-caption: 0.875rem; /* 14px */
-  --font-tiny: 0.75rem;     /* 12px */
+  --font-tiny: 0.75rem; /* 12px */
 
   /* Line Heights */
   --line-tight: 1.1;
@@ -106,15 +111,15 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
-  --radius-2xl: 24px;    /* Cards, containers */
-  --radius-3xl: 32px;    /* Large cards */
+  --radius-2xl: 24px; /* Cards, containers */
+  --radius-3xl: 32px; /* Large cards */
   --radius-full: 9999px; /* Pills, avatars */
 
   /* ===========================================
      LAYOUT
      =========================================== */
   --container-max: 1280px;
-  --content-max: 720px;   /* Reading width */
+  --content-max: 720px; /* Reading width */
   --sidebar-width: 256px;
   --navbar-height: 72px;
   --mobile-navbar: 64px;
@@ -135,38 +140,38 @@
 [data-theme="dark"],
 .dark {
   /* Surface Elevation (lighter = closer to user) */
-  --surface-base: #0F172A;         /* Deep Navy - base */
-  --surface-raised: #1E293B;       /* Slate 800 - cards */
+  --surface-base: #0f172a; /* Deep Navy - base */
+  --surface-raised: #1e293b; /* Slate 800 - cards */
   --surface-overlay: rgba(30, 41, 59, 0.95);
 
   /* Content */
-  --text-primary: #F1F5F9;         /* Slate 100 */
-  --text-secondary: #94A3B8;       /* Slate 400 */
-  --text-tertiary: #64748B;        /* Slate 500 */
-  --text-inverse: #0F172A;
+  --text-primary: #f1f5f9; /* Slate 100 */
+  --text-secondary: #94a3b8; /* Slate 400 */
+  --text-tertiary: #64748b; /* Slate 500 */
+  --text-inverse: #ffffff;
 
-  /* Actions (desaturated for dark mode) */
-  --action-primary: #818CF8;       /* Desaturated indigo */
-  --action-primary-hover: #A5B4FC;
+  /* Actions (deep enough for white-text contrast ≥ 4.5:1) */
+  --action-primary: #4f46e5; /* Deep Indigo – same as light, 6.3:1 with white */
+  --action-primary-hover: #6366f1;
   --action-secondary: #334155;
   --action-secondary-hover: #475569;
-  --action-ghost-hover: #1E293B;
+  --action-ghost-hover: #1e293b;
 
   /* States (slightly muted) */
-  --state-success: #2DD4BF;
+  --state-success: #2dd4bf;
   --state-success-light: rgba(45, 212, 191, 0.15);
-  --state-warning: #FBBF24;
+  --state-warning: #fbbf24;
   --state-warning-light: rgba(251, 191, 36, 0.15);
-  --state-error: #F87171;
+  --state-error: #f87171;
   --state-error-light: rgba(248, 113, 113, 0.15);
-  --state-info: #60A5FA;
+  --state-info: #60a5fa;
   --state-info-light: rgba(96, 165, 250, 0.15);
 
   /* Borders */
-  --border-subtle: #1E293B;
+  --border-subtle: #1e293b;
   --border-default: #334155;
   --border-strong: #475569;
-  --border-focus: #818CF8;
+  --border-focus: #818cf8;
 
   /* Shadows (minimal in dark mode, use elevation instead) */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -196,34 +201,54 @@
   body {
     background-color: var(--surface-base);
     color: var(--text-primary);
-    font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter),
+      system-ui,
+      -apple-system,
+      sans-serif;
     line-height: var(--line-normal);
     min-height: 100vh;
-    transition: background-color var(--transition-slow), color var(--transition-slow);
+    transition:
+      background-color var(--transition-slow),
+      color var(--transition-slow);
   }
 
   /* Typography defaults */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     color: var(--text-primary);
     font-weight: 600;
     letter-spacing: var(--tracking-tight);
     line-height: var(--line-snug);
   }
 
-  h1 { font-size: var(--font-h1); }
-  h2 { font-size: var(--font-h2); }
-  h3 { font-size: var(--font-h3); }
-  h4 { font-size: var(--font-h4); }
+  h1 {
+    font-size: var(--font-h1);
+  }
+  h2 {
+    font-size: var(--font-h2);
+  }
+  h3 {
+    font-size: var(--font-h3);
+  }
+  h4 {
+    font-size: var(--font-h4);
+  }
 
   p {
-    color: var(--text-secondary);
     line-height: var(--line-relaxed);
   }
 
   /* Focus visible for keyboard navigation */
   *:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px var(--action-primary), 0 0 0 5px var(--surface-base);
+    box-shadow:
+      0 0 0 3px var(--action-primary),
+      0 0 0 5px var(--surface-base);
   }
 
   /* Selection */
@@ -499,7 +524,7 @@
   }
 
   .checkbox-modern:checked::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 3px;
     left: 7px;
@@ -621,7 +646,7 @@
 
   /* Gradient Text */
   .text-gradient {
-    background: linear-gradient(135deg, var(--action-primary), #8B5CF6);
+    background: linear-gradient(135deg, var(--action-primary), #8b5cf6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -632,12 +657,17 @@
    ANIMATIONS
    =========================================== */
 @keyframes skeleton-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes blob {
-  0%, 100% {
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
   }
   25% {
@@ -652,7 +682,8 @@
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -709,7 +740,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -718,7 +750,8 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -764,10 +797,24 @@
 }
 
 /* Staggered Animation Delays */
-.animation-delay-100 { animation-delay: 100ms; }
-.animation-delay-200 { animation-delay: 200ms; }
-.animation-delay-300 { animation-delay: 300ms; }
-.animation-delay-500 { animation-delay: 500ms; }
-.animation-delay-1000 { animation-delay: 1000ms; }
-.animation-delay-2000 { animation-delay: 2000ms; }
-.animation-delay-4000 { animation-delay: 4000ms; }
+.animation-delay-100 {
+  animation-delay: 100ms;
+}
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+.animation-delay-500 {
+  animation-delay: 500ms;
+}
+.animation-delay-1000 {
+  animation-delay: 1000ms;
+}
+.animation-delay-2000 {
+  animation-delay: 2000ms;
+}
+.animation-delay-4000 {
+  animation-delay: 4000ms;
+}

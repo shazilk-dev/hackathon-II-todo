@@ -33,6 +33,16 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 # Target metadata for autogenerate support
 target_metadata = SQLModel.metadata
 
+# Better Auth tables managed by the frontend – Alembic must never touch them
+EXTERNAL_TABLES = {"account", "session", "verification"}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    """Exclude externally managed tables from autogenerate."""
+    if type_ == "table" and name in EXTERNAL_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """
@@ -49,6 +59,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -57,7 +68,11 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     """Run migrations with the given connection."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

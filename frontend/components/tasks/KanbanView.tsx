@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Task, StatusType } from "@/lib/api";
+import { Task, StatusType, UpdateTaskData } from "@/lib/api";
 import { Inbox, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
 import { TaskItem } from "./TaskItem";
 
@@ -9,9 +9,10 @@ interface KanbanViewProps {
   tasks: Task[];
   userId: string;
   onStatusChange: (taskId: number, newStatus: StatusType) => void;
-  onUpdate: (task: Task) => void;
-  onDelete: (taskId: number) => void;
   onFocus?: (task: Task) => void;
+  onUpdateTask: (variables: { taskId: number; data: UpdateTaskData }) => void;
+  onToggleComplete: (taskId: number) => void;
+  onDeleteTask: (taskId: number) => void;
 }
 
 interface Column {
@@ -22,13 +23,41 @@ interface Column {
 }
 
 const columns: Column[] = [
-  { status: "backlog", title: "Backlog", icon: Inbox, color: "bg-slate-100 text-slate-700" },
-  { status: "in_progress", title: "In Progress", icon: Clock, color: "bg-blue-100 text-blue-700" },
-  { status: "blocked", title: "Blocked", icon: AlertCircle, color: "bg-red-100 text-red-700" },
-  { status: "done", title: "Done", icon: CheckCircle2, color: "bg-green-100 text-green-700" },
+  {
+    status: "backlog",
+    title: "Backlog",
+    icon: Inbox,
+    color: "bg-surface-base text-content-tertiary",
+  },
+  {
+    status: "in_progress",
+    title: "In Progress",
+    icon: Clock,
+    color: "bg-state-info-light text-state-info",
+  },
+  {
+    status: "blocked",
+    title: "Blocked",
+    icon: AlertCircle,
+    color: "bg-state-error-light text-state-error",
+  },
+  {
+    status: "done",
+    title: "Done",
+    icon: CheckCircle2,
+    color: "bg-state-success-light text-state-success",
+  },
 ];
 
-export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete, onFocus }: KanbanViewProps) {
+export function KanbanView({
+  tasks,
+  userId,
+  onStatusChange,
+  onFocus,
+  onUpdateTask,
+  onToggleComplete,
+  onDeleteTask,
+}: KanbanViewProps) {
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<StatusType | null>(null);
 
@@ -84,30 +113,36 @@ export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete, 
         return (
           <div
             key={column.status}
-            className={`flex flex-col bg-surface-raised rounded-xl border transition-all ${
-              isDragOver ? "border-action-primary bg-action-primary/5" : "border-border-subtle"
+            className={`flex flex-col bg-surface-raised rounded-2xl border transition-all ${
+              isDragOver
+                ? "border-action-primary bg-action-primary/5 shadow-md"
+                : "border-border-subtle"
             }`}
             onDragOver={(e) => handleDragOver(e, column.status)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.status)}
           >
             {/* Column header */}
-            <div className="p-3 border-b border-border-subtle">
+            <div className="px-4 py-3.5 border-b border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Icon className="w-4 h-4 text-content-secondary" />
-                  <h3 className="text-sm font-semibold text-content-primary">{column.title}</h3>
+                  <h3 className="text-[13px] font-semibold text-content-primary">
+                    {column.title}
+                  </h3>
                 </div>
-                <span className={`inline-flex items-center h-5 px-1.5 text-[10px] font-medium rounded ${column.color}`}>
+                <span
+                  className={`inline-flex items-center h-5 px-2 text-[11px] font-semibold rounded-lg ${column.color}`}
+                >
                   {columnTasks.length}
                 </span>
               </div>
             </div>
 
             {/* Column tasks */}
-            <div className="flex-1 p-3 space-y-2 overflow-y-auto min-h-[200px]">
+            <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
               {columnTasks.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-xs text-content-tertiary">
+                <div className="flex items-center justify-center h-full text-[13px] text-content-tertiary">
                   Drop tasks here
                 </div>
               ) : (
@@ -124,9 +159,10 @@ export function KanbanView({ tasks, userId, onStatusChange, onUpdate, onDelete, 
                     <TaskItem
                       task={task}
                       userId={userId}
-                      onUpdate={onUpdate}
-                      onDelete={onDelete}
                       onFocus={onFocus}
+                      onUpdateTask={onUpdateTask}
+                      onToggleComplete={onToggleComplete}
+                      onDeleteTask={onDeleteTask}
                     />
                   </div>
                 ))

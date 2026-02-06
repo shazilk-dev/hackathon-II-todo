@@ -18,21 +18,21 @@ export function ViewSwitcher({ currentView, onViewChange }: ViewSwitcherProps) {
   ];
 
   return (
-    <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle rounded-lg p-1">
+    <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle rounded-2xl p-1 shadow-sm">
       {views.map(({ type, icon: Icon, label }) => (
         <button
           key={type}
           onClick={() => onViewChange(type)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+          className={`flex items-center gap-2 px-3.5 h-9 text-[13px] font-medium rounded-xl transition-all duration-200 ${
             currentView === type
-              ? "bg-action-primary text-content-inverse"
+              ? "bg-action-primary text-content-inverse shadow-md"
               : "text-content-secondary hover:text-content-primary hover:bg-action-secondary"
           }`}
           aria-label={`${label} view`}
           aria-current={currentView === type ? "page" : undefined}
         >
-          <Icon className="w-3.5 h-3.5" />
-          {label}
+          <Icon className="w-4 h-4" />
+          <span className="hidden sm:inline">{label}</span>
         </button>
       ))}
     </div>

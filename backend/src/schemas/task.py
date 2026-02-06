@@ -3,10 +3,13 @@ Task: T024
 Pydantic schemas for Task API requests and responses.
 """
 
+import logging
 from datetime import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 # Priority type matching the model
 PriorityType = Literal["low", "medium", "high", "critical"]
@@ -40,13 +43,12 @@ class TaskCreate(TaskBase):
     @classmethod
     def due_date_validator(cls, v: Optional[datetime]) -> Optional[datetime]:
         """
-        Validate due_date (warning only, allow past dates).
+        Validate due_date - allow past dates but log a warning.
 
         Past dates are allowed as users may want to track overdue tasks.
         """
         if v is not None and v < datetime.utcnow():
-            # Warning only - don't raise error, just note it's in the past
-            pass
+            logger.info("Task created with past due_date: %s", v.isoformat())
         return v
 
 
@@ -55,11 +57,17 @@ class TaskUpdate(BaseModel):
     Schema for updating an existing task.
 
     All fields are optional to support partial updates.
+    Use 'status' as the primary way to change completion state.
+    'completed' is kept for backwards compatibility and maps to
+    status=done (True) or status=backlog (False).
     """
 
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
-    completed: Optional[bool] = None
+    completed: Optional[bool] = Field(
+        None,
+        description="Deprecated: use 'status' instead. Maps True→done, False→backlog.",
+    )
     due_date: Optional[datetime] = None
     priority: Optional[PriorityType] = None
     status: Optional[StatusType] = None
@@ -75,10 +83,9 @@ class TaskUpdate(BaseModel):
     @field_validator("due_date")
     @classmethod
     def due_date_validator(cls, v: Optional[datetime]) -> Optional[datetime]:
-        """Validate due_date (warning only, allow past dates)."""
+        """Validate due_date - allow past dates but log a warning."""
         if v is not None and v < datetime.utcnow():
-            # Warning only - past dates allowed
-            pass
+            logger.info("Task update with past due_date: %s", v.isoformat())
         return v
 
 

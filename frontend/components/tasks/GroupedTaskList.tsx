@@ -1,17 +1,18 @@
 "use client";
 
-import { Task } from "@/lib/api";
+import { Task, UpdateTaskData } from "@/lib/api";
 import { TaskItem } from "./TaskItem";
-import { Calendar, Clock, Inbox } from "lucide-react";
+import { Calendar, Clock, Inbox, CheckCircle2 } from "lucide-react";
 
 interface GroupedTaskListProps {
   tasks: Task[];
   userId: string;
   isLoading: boolean;
-  error: string | null;
-  onUpdate: (task: Task) => void;
-  onDelete: (taskId: number) => void;
+  error: Error | null;
   onFocus?: (task: Task) => void;
+  onUpdateTask: (variables: { taskId: number; data: UpdateTaskData }) => void;
+  onToggleComplete: (taskId: number) => void;
+  onDeleteTask: (taskId: number) => void;
 }
 
 interface TaskGroup {
@@ -21,18 +22,30 @@ interface TaskGroup {
   tasks: Task[];
 }
 
-export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onDelete, onFocus }: GroupedTaskListProps) {
+export function GroupedTaskList({
+  tasks,
+  userId,
+  isLoading,
+  error,
+  onFocus,
+  onUpdateTask,
+  onToggleComplete,
+  onDeleteTask,
+}: GroupedTaskListProps) {
   // Loading state
   if (isLoading) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-surface-raised rounded-xl p-3 border border-border-subtle animate-pulse">
+          <div
+            key={i}
+            className="bg-surface-raised rounded-2xl p-4 border border-border-subtle animate-pulse"
+          >
             <div className="flex items-start gap-3">
-              <div className="skeleton w-5 h-5 rounded" />
-              <div className="flex-1 space-y-2">
-                <div className="skeleton h-4 w-3/4 rounded" />
-                <div className="skeleton h-3 w-1/2 rounded" />
+              <div className="skeleton w-[22px] h-[22px] rounded-lg" />
+              <div className="flex-1 space-y-2.5">
+                <div className="skeleton h-4 w-3/4 rounded-lg" />
+                <div className="skeleton h-3 w-1/2 rounded-lg" />
               </div>
             </div>
           </div>
@@ -44,12 +57,22 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
   // Error state
   if (error) {
     return (
-      <div className="bg-state-error-light rounded-xl p-3 border border-state-error/20">
-        <div className="flex items-center gap-2 text-state-error">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <div className="bg-state-error-light rounded-2xl p-4 border border-state-error/20">
+        <div className="flex items-center gap-2.5 text-state-error">
+          <svg
+            className="w-5 h-5 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
-          <p className="text-xs">{error}</p>
+          <p className="text-sm text-state-error">{error.message}</p>
         </div>
       </div>
     );
@@ -69,7 +92,7 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
     const somedayTasks: Task[] = [];
 
     // Filter out completed tasks
-    const pendingTasks = tasks.filter(t => t.status !== "done");
+    const pendingTasks = tasks.filter((t) => t.status !== "done");
 
     pendingTasks.forEach((task) => {
       if (!task.due_date) {
@@ -77,7 +100,11 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
         somedayTasks.push(task);
       } else {
         const dueDate = new Date(task.due_date);
-        const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+        const dueDateOnly = new Date(
+          dueDate.getFullYear(),
+          dueDate.getMonth(),
+          dueDate.getDate(),
+        );
 
         if (dueDateOnly <= today) {
           // Due today or overdue -> Today
@@ -97,49 +124,49 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
         title: "Today",
         icon: Clock,
         color: "text-state-error",
-        tasks: todayTasks
+        tasks: todayTasks,
       },
       {
         title: "Upcoming",
         icon: Calendar,
         color: "text-state-warning",
-        tasks: upcomingTasks
+        tasks: upcomingTasks,
       },
       {
         title: "Someday",
         icon: Inbox,
         color: "text-content-tertiary",
-        tasks: somedayTasks
-      }
+        tasks: somedayTasks,
+      },
     ];
   };
 
   const groups = groupTasks();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {groups.map((group) => {
         const Icon = group.icon;
 
         if (group.tasks.length === 0) {
-          return null;  // Hide empty groups
+          return null; // Hide empty groups
         }
 
         return (
           <div key={group.title} className="space-y-3">
             {/* Group Header */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <Icon className={`w-4 h-4 ${group.color}`} />
-              <h3 className="text-sm font-semibold text-content-primary">
+              <h3 className="text-[15px] font-semibold text-content-primary">
                 {group.title}
               </h3>
-              <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-surface-raised text-content-secondary">
+              <span className="inline-flex items-center h-5 px-2 text-[11px] font-semibold rounded-lg bg-surface-raised text-content-secondary">
                 {group.tasks.length}
               </span>
             </div>
 
             {/* Group Tasks */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {group.tasks.map((task, index) => (
                 <div
                   key={task.id}
@@ -149,9 +176,10 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
                   <TaskItem
                     task={task}
                     userId={userId}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
                     onFocus={onFocus}
+                    onUpdateTask={onUpdateTask}
+                    onToggleComplete={onToggleComplete}
+                    onDeleteTask={onDeleteTask}
                   />
                 </div>
               ))}
@@ -161,15 +189,19 @@ export function GroupedTaskList({ tasks, userId, isLoading, error, onUpdate, onD
       })}
 
       {/* Empty state */}
-      {groups.every(g => g.tasks.length === 0) && (
-        <div className="bg-surface-raised rounded-xl p-8 border border-border-subtle text-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-action-secondary flex items-center justify-center">
-              <Inbox className="w-5 h-5 text-action-primary" />
+      {groups.every((g) => g.tasks.length === 0) && (
+        <div className="bg-surface-raised rounded-2xl py-16 px-6 border border-border-subtle text-center">
+          <div className="flex flex-col items-center gap-4 max-w-xs mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-state-success-light flex items-center justify-center shadow-sm">
+              <CheckCircle2 className="w-7 h-7 text-state-success" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-content-primary mb-1">All caught up!</h3>
-              <p className="text-xs text-content-tertiary">No pending tasks to show</p>
+              <h3 className="text-base font-semibold text-content-primary mb-1.5">
+                All caught up!
+              </h3>
+              <p className="text-[13px] text-content-tertiary leading-relaxed">
+                No pending tasks to show. Time to relax or plan ahead.
+              </p>
             </div>
           </div>
         </div>

@@ -221,6 +221,8 @@ class StatisticsService:
         Log a task completion event.
 
         This is called when a task is marked as done.
+        NOTE: Does NOT commit — caller is responsible for committing
+        the transaction so task update + completion log are atomic.
         """
         completion = TaskCompletion(
             user_id=user_id,
@@ -228,6 +230,4 @@ class StatisticsService:
             duration_minutes=duration_minutes
         )
         session.add(completion)
-        await session.commit()
-        await session.refresh(completion)
         return completion

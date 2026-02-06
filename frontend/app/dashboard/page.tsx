@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { ListView } from "@/components/tasks/ListView";
@@ -12,148 +12,146 @@ import { ProgressCard } from "@/components/tasks/ProgressCard";
 import { ViewSwitcher, ViewType } from "@/components/tasks/ViewSwitcher";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { api, Task } from "@/lib/api";
-import { Loader2, ListTodo, Clock, CheckCircle2 } from "lucide-react";
+import { Task } from "@/lib/api";
+import {
+  useTasks,
+  useCreateTask,
+  useUpdateTask,
+  useToggleTaskComplete,
+  useDeleteTask,
+} from "@/lib/hooks";
+import {
+  Loader2,
+  ListTodo,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Sparkles,
+} from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed";
 
 const filterConfig = {
-  all: { label: "All Tasks", icon: ListTodo },
-  pending: { label: "Pending", icon: Clock },
-  completed: { label: "Completed", icon: CheckCircle2 },
+  all: { label: "All", icon: ListTodo, color: "text-state-info" },
+  pending: { label: "Pending", icon: Clock, color: "text-state-warning" },
+  completed: {
+    label: "Done",
+    icon: CheckCircle2,
+    color: "text-state-success",
+  },
 } as const;
+
+/** Returns a time-of-day greeting */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 function DashboardContent() {
   const { data: session, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [focusTask, setFocusTask] = useState<Task | null>(null);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const userId = session?.user?.id;
+  const userName =
+    session?.user?.name || session?.user?.email?.split("@")[0] || "";
 
   // Get view from URL, default to list
   const currentView = (searchParams.get("view") as ViewType) || "list";
 
-  // Fetch ALL tasks once (no filter parameter)
-  const fetchTasks = useCallback(async () => {
-    if (!userId) return;
+  // React Query - Automatic caching
+  const { data: allTasks = [], isLoading, error } = useTasks(userId, "all");
 
-    setIsLoading(true);
-    setError(null);
+  // React Query mutations
+  const createTaskMutation = useCreateTask(userId);
+  const updateTaskMutation = useUpdateTask(userId);
+  const toggleCompleteMutation = useToggleTaskComplete(userId);
+  const deleteTaskMutation = useDeleteTask(userId);
 
-    try {
-      const response = await api.getTasks(userId, "all");
-      setAllTasks(response.tasks);
-      // Mark initial load as complete after first successful fetch
-      if (!initialLoadComplete) {
-        setInitialLoadComplete(true);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch tasks");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId, initialLoadComplete]);
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  // Client-side filtering (INSTANT - no API call!)
+  // Client-side filtering
   const tasks = useMemo(() => {
     if (filter === "all") return allTasks;
-    if (filter === "pending") return allTasks.filter(t => !t.completed);
-    if (filter === "completed") return allTasks.filter(t => t.completed);
+    if (filter === "pending") return allTasks.filter((t) => !t.completed);
+    if (filter === "completed") return allTasks.filter((t) => t.completed);
     return allTasks;
   }, [allTasks, filter]);
 
-  // Client-side redirect if not authenticated
+  // Derive counts from full dataset
+  const totalCount = allTasks.length;
+  const pendingCount = allTasks.filter((t) => !t.completed).length;
+  const completedCount = allTasks.filter((t) => t.completed).length;
+  const overdueCount = allTasks.filter((t) => {
+    if (t.completed || !t.due_date) return false;
+    return new Date(t.due_date) < new Date();
+  }).length;
+  const todayCount = allTasks.filter((t) => {
+    if (t.completed || !t.due_date) return false;
+    const due = new Date(t.due_date);
+    const now = new Date();
+    return (
+      due.getDate() === now.getDate() &&
+      due.getMonth() === now.getMonth() &&
+      due.getFullYear() === now.getFullYear()
+    );
+  }).length;
+
+  // Auth redirect
   useEffect(() => {
     if (!authLoading && !session) {
       router.push("/auth/sign-in");
     }
   }, [session, authLoading, router]);
 
-  // Update URL when view changes
   const handleViewChange = (view: ViewType) => {
     router.push(`/dashboard?view=${view}`);
   };
 
   const handleTaskCreated = (task: Task) => {
-    setAllTasks((prev) => [task, ...prev]);
+    // Handled by React Query optimistic update
   };
 
-  const handleTaskUpdated = (updatedTask: Task) => {
-    setAllTasks((prev) => prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
-  };
-
-  const handleTaskDeleted = (taskId: number) => {
-    setAllTasks((prev) => prev.filter((task) => task.id !== taskId));
-  };
-
-  const handleStatusChange = async (taskId: number, newStatus: any) => {
+  const handleStatusChange = (taskId: number, newStatus: any) => {
     if (!userId) return;
-    try {
-      const updated = await api.changeStatus(userId, taskId, newStatus);
-      handleTaskUpdated(updated);
-    } catch (err) {
-      console.error("Failed to change status:", err);
-    }
+    updateTaskMutation.mutate({ taskId, data: { status: newStatus } });
   };
 
-  const handleDateClick = (date: Date) => {
-    // Switch to list view to show task form where user can create task
-    handleViewChange("list");
-  };
+  const handleDateClick = () => handleViewChange("list");
 
   const handleTaskClick = (task: Task) => {
-    // Enter focus mode for the clicked task (if not completed)
-    if (!task.completed) {
-      setFocusTask(task);
-    }
+    if (!task.completed) setFocusTask(task);
   };
 
-  // Task counts for badges
-  const pendingCount = tasks.filter((t) => !t.completed).length;
-  const completedCount = tasks.filter((t) => t.completed).length;
-
-  // Show loading state while checking authentication
+  // Loading state
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-base">
         <div className="text-center animate-fade-in">
-          <div className="w-10 h-10 rounded-xl bg-action-secondary flex items-center justify-center mx-auto mb-3">
-            <Loader2 className="w-5 h-5 text-action-primary animate-spin" />
+          <div className="w-12 h-12 rounded-2xl bg-action-secondary flex items-center justify-center mx-auto mb-4 shadow-md">
+            <Loader2 className="w-6 h-6 text-action-primary animate-spin" />
           </div>
-          <p className="text-xs text-content-secondary">Loading your tasks...</p>
+          <p className="text-sm text-content-secondary font-medium">
+            Loading your workspace…
+          </p>
         </div>
       </div>
     );
   }
 
-  // Don't render dashboard if not authenticated
-  // (will redirect via useEffect above)
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
-  // Show focus mode if task selected
+  // Focus mode
   if (focusTask && userId) {
     return (
       <FocusMode
         task={focusTask}
         userId={userId}
         onExit={() => setFocusTask(null)}
-        onTaskComplete={(updatedTask) => {
-          handleTaskUpdated(updatedTask);
-          setFocusTask(null);
-        }}
+        onTaskComplete={() => setFocusTask(null)}
       />
     );
   }
@@ -162,80 +160,150 @@ function DashboardContent() {
     <div className="min-h-screen bg-surface-base">
       <Header />
 
-      <main className="max-w-7xl mx-auto py-5 px-3 sm:px-4">
-        {/* Page Header */}
-        <div className="mb-5 animate-slide-up">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+      <main className="max-w-6xl mx-auto pt-6 pb-12 px-4 sm:px-6 lg:px-8">
+        {/* ── Welcome Section ── */}
+        <div className="mb-8 animate-slide-up">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <h1 className="text-lg font-semibold text-content-primary mb-1">My Tasks</h1>
-              <p className="text-sm text-content-secondary">
-                Organize your day, track your progress, get things done.
+              <h1 className="text-xl sm:text-2xl font-bold text-content-primary tracking-tight">
+                {getGreeting()}
+                {userName ? `, ${userName}` : ""}{" "}
+                <span className="inline-block animate-float">👋</span>
+              </h1>
+              <p className="text-sm sm:text-[15px] text-content-secondary mt-1.5 leading-relaxed">
+                {totalCount === 0
+                  ? "Start your productive day by adding your first task."
+                  : todayCount > 0
+                    ? `You have ${todayCount} task${todayCount > 1 ? "s" : ""} due today${overdueCount > 0 ? ` and ${overdueCount} overdue` : ""}.`
+                    : pendingCount > 0
+                      ? `${pendingCount} task${pendingCount > 1 ? "s" : ""} remaining. Keep going!`
+                      : "All tasks done — you're on top of things! 🎉"}
               </p>
             </div>
-            <ViewSwitcher currentView={currentView} onViewChange={handleViewChange} />
+            <ViewSwitcher
+              currentView={currentView}
+              onViewChange={handleViewChange}
+            />
           </div>
         </div>
 
-        {/* Progress Card - Mobile (at top) */}
-        {userId && initialLoadComplete && (
-          <div className="lg:hidden mb-4">
+        {/* ── Quick Stats Row ── */}
+        {totalCount > 0 && (
+          <div
+            className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 animate-slide-up"
+            style={{ animationDelay: "60ms" }}
+          >
+            {[
+              {
+                label: "Total",
+                value: totalCount,
+                icon: ListTodo,
+                bg: "bg-state-info-light",
+                fg: "text-state-info",
+              },
+              {
+                label: "Pending",
+                value: pendingCount,
+                icon: Clock,
+                bg: "bg-state-warning-light",
+                fg: "text-state-warning",
+              },
+              {
+                label: "Completed",
+                value: completedCount,
+                icon: CheckCircle2,
+                bg: "bg-state-success-light",
+                fg: "text-state-success",
+              },
+              {
+                label: "Overdue",
+                value: overdueCount,
+                icon: AlertTriangle,
+                bg: "bg-state-error-light",
+                fg: "text-state-error",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="flex items-center gap-3 px-4 py-3 bg-surface-raised rounded-2xl border border-border-subtle hover:shadow-md transition-shadow"
+              >
+                <div
+                  className={`flex items-center justify-center w-9 h-9 rounded-xl ${stat.bg}`}
+                >
+                  <stat.icon className={`w-[18px] h-[18px] ${stat.fg}`} />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-content-primary leading-none">
+                    {stat.value}
+                  </p>
+                  <p className="text-xs text-content-tertiary mt-0.5">
+                    {stat.label}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Progress Card — Mobile only ── */}
+        {userId && (
+          <div className="lg:hidden mb-6">
             <ProgressCard userId={userId} />
           </div>
         )}
 
-        {/* Two-column layout for larger screens */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Main content area */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Task Form (show in all views except calendar) */}
+        {/* ── Two-column Layout ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          {/* Main content */}
+          <div className="space-y-5 min-w-0">
+            {/* Task Form */}
             {currentView !== "calendar" && userId && (
-              <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
+              <TaskForm
+                userId={userId}
+                onTaskCreated={handleTaskCreated}
+                onCreateTask={createTaskMutation.mutate}
+                isCreating={createTaskMutation.isPending}
+              />
             )}
 
-            {/* Stats & Filter Row (only in list view) */}
+            {/* Filter Tabs (list view only) */}
             {currentView === "list" && (
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-content-tertiary">Total</span>
-                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">
-                      {tasks.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-content-tertiary">Pending</span>
-                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">
-                      {pendingCount}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-content-tertiary">Done</span>
-                    <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">
-                      {completedCount}
-                    </span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-1.5 p-1 bg-surface-raised rounded-2xl border border-border-subtle shadow-sm">
+                {(Object.keys(filterConfig) as StatusFilter[]).map((status) => {
+                  const { label, icon: Icon, color } = filterConfig[status];
+                  const isActive = filter === status;
+                  const count =
+                    status === "all"
+                      ? totalCount
+                      : status === "pending"
+                        ? pendingCount
+                        : completedCount;
 
-                <div className="flex items-center gap-1 p-0.5 bg-surface-base rounded-lg border border-border-subtle">
-                  {(Object.keys(filterConfig) as StatusFilter[]).map((status) => {
-                    const { label, icon: Icon } = filterConfig[status];
-                    return (
-                      <button
-                        key={status}
-                        onClick={() => setFilter(status)}
-                        className={`flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-md transition-all ${
-                          filter === status
-                            ? "bg-surface-raised text-content-primary shadow-sm"
-                            : "text-content-tertiary hover:text-content-secondary"
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setFilter(status)}
+                      className={`relative flex items-center justify-center gap-2 flex-1 h-10 sm:h-11 text-[13px] sm:text-sm font-medium rounded-xl transition-all duration-200 ${
+                        isActive
+                          ? "bg-surface-base text-content-primary shadow-md"
+                          : "text-content-tertiary hover:text-content-secondary"
+                      }`}
+                      aria-pressed={isActive}
+                    >
+                      <Icon className={`w-4 h-4 ${isActive ? color : ""}`} />
+                      <span>{label}</span>
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full transition-colors ${
+                          isActive
+                            ? `${color} bg-surface-raised`
+                            : "text-content-tertiary bg-surface-base"
                         }`}
-                        aria-pressed={filter === status}
                       >
-                        <Icon className="w-3 h-3" />
-                        <span className="hidden sm:inline">{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -248,54 +316,54 @@ function DashboardContent() {
                     userId={userId}
                     isLoading={isLoading}
                     error={error}
-                    onUpdate={handleTaskUpdated}
-                    onDelete={handleTaskDeleted}
                     onFocus={setFocusTask}
+                    onUpdateTask={updateTaskMutation.mutate}
+                    onToggleComplete={toggleCompleteMutation.mutate}
+                    onDeleteTask={deleteTaskMutation.mutate}
                   />
                 )}
-
                 {currentView === "grouped" && (
                   <GroupedTaskList
                     tasks={tasks}
                     userId={userId}
                     isLoading={isLoading}
                     error={error}
-                    onUpdate={handleTaskUpdated}
-                    onDelete={handleTaskDeleted}
                     onFocus={setFocusTask}
+                    onUpdateTask={updateTaskMutation.mutate}
+                    onToggleComplete={toggleCompleteMutation.mutate}
+                    onDeleteTask={deleteTaskMutation.mutate}
                   />
                 )}
-
                 {currentView === "calendar" && (
                   <CalendarView
-                    tasks={tasks}
+                    tasks={allTasks}
                     userId={userId}
                     onDateClick={handleDateClick}
                     onTaskClick={handleTaskClick}
                   />
                 )}
-
                 {currentView === "kanban" && (
                   <KanbanView
                     tasks={tasks}
                     userId={userId}
                     onStatusChange={handleStatusChange}
-                    onUpdate={handleTaskUpdated}
-                    onDelete={handleTaskDeleted}
                     onFocus={setFocusTask}
+                    onUpdateTask={updateTaskMutation.mutate}
+                    onToggleComplete={toggleCompleteMutation.mutate}
+                    onDeleteTask={deleteTaskMutation.mutate}
                   />
                 )}
               </>
             )}
           </div>
 
-          {/* Sidebar - Progress Card (only on larger screens) */}
-          {userId && initialLoadComplete && (
-            <div className="hidden lg:block">
-              <div className="sticky top-20">
+          {/* Sidebar — Desktop */}
+          {userId && (
+            <aside className="hidden lg:block">
+              <div className="sticky top-24">
                 <ProgressCard userId={userId} />
               </div>
-            </div>
+            </aside>
           )}
         </div>
       </main>
@@ -309,10 +377,12 @@ export default function DashboardPage() {
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-surface-base">
           <div className="text-center animate-fade-in">
-            <div className="w-10 h-10 rounded-xl bg-action-secondary flex items-center justify-center mx-auto mb-3">
-              <Loader2 className="w-5 h-5 text-action-primary animate-spin" />
+            <div className="w-12 h-12 rounded-2xl bg-action-secondary flex items-center justify-center mx-auto mb-4 shadow-md">
+              <Loader2 className="w-6 h-6 text-action-primary animate-spin" />
             </div>
-            <p className="text-xs text-content-secondary">Loading...</p>
+            <p className="text-sm text-content-secondary font-medium">
+              Loading…
+            </p>
           </div>
         </div>
       }

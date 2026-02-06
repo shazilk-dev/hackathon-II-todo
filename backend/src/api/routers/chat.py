@@ -25,6 +25,87 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
 
 
+@router.get("/{user_id}/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    user_id: str,
+    conversation_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Get all messages from a conversation.
+
+    Args:
+        user_id: User identifier from path parameter
+        conversation_id: Conversation ID to fetch messages from
+        request: FastAPI request object (contains JWT user_id)
+        session: Database session
+
+    Returns:
+        List of messages with role, content, and tool_calls
+
+    Raises:
+        HTTPException 403: User doesn't own this conversation
+        HTTPException 404: Conversation not found
+    """
+    try:
+        # Verify user_id matches JWT
+        if request.state.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Cannot access resources for other users",
+            )
+
+        # Get conversation and verify ownership
+        statement = select(Conversation).where(Conversation.id == conversation_id)
+        result = await session.execute(statement)
+        conversation = result.scalar_one_or_none()
+
+        if conversation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        if conversation.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - conversation belongs to another user",
+            )
+
+        # Fetch all messages in chronological order
+        statement = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc())
+        )
+        result = await session.execute(statement)
+        messages = result.scalars().all()
+
+        # Format messages for frontend
+        formatted_messages = [
+            {
+                "id": f"{msg.role}-{msg.id}",
+                "role": msg.role,
+                "content": msg.content,
+                "tool_calls": msg.tool_calls if msg.tool_calls else None,
+                "timestamp": msg.created_at.isoformat(),
+            }
+            for msg in messages
+        ]
+
+        return {"messages": formatted_messages, "count": len(formatted_messages)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch conversation messages",
+        )
+
+
 @router.post("/{user_id}/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def chat_endpoint(
     user_id: str,

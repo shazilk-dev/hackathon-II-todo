@@ -572,5 +572,31 @@ export const api = {
       }
       throw error;
     }
+  },
+
+  // Get conversation messages
+  async getConversationMessages(userId: string, conversationId: number): Promise<{
+    messages: Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      tool_calls: ToolCall[] | null;
+      timestamp: string;
+    }>;
+    count: number;
+  }> {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_URL}/api/${userId}/conversations/${conversationId}/messages`,
+        { headers, cache: 'no-store' }
+      );
+      return handleResponse(response);
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      }
+      throw error;
+    }
   }
 };

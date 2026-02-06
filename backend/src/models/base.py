@@ -5,6 +5,7 @@ Base model with timestamp mixin for created_at and updated_at fields.
 
 from datetime import datetime
 
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -14,17 +15,17 @@ class TimestampMixin(SQLModel):
 
     Provides:
         - created_at: Set on record creation
-        - updated_at: Set on record creation and updated on modification
+        - updated_at: Set on record creation and automatically updated on modification
 
     Note: Using datetime.utcnow() instead of datetime.now(timezone.utc)
     because PostgreSQL TIMESTAMP WITHOUT TIME ZONE expects timezone-naive datetimes.
     """
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        nullable=False,
+        sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        nullable=False,
+        sa_column=Column(
+            DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        ),
     )

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CheckSquare, ArrowRight, Zap, Shield, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Zap, Shield, Sparkles } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -16,11 +17,19 @@ export default function HomePage() {
         {/* Nav */}
         <nav className="w-full py-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-container mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-action-primary">
-                <CheckSquare className="w-5 h-5 text-content-inverse" />
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="Fehrist Logo"
+                width={44}
+                height={44}
+                className="w-10 h-10 sm:w-11 sm:h-11 object-contain"
+                priority
+              />
+              <div className="flex flex-col -space-y-0.5">
+                <span className="text-h4 font-semibold text-content-primary">Fehrist</span>
+                <span className="text-[11px] text-content-tertiary font-medium">فہرست</span>
               </div>
-              <span className="text-h4 font-semibold text-content-primary">TaskFlow</span>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/auth/sign-in" className="btn-ghost btn-sm">
@@ -52,7 +61,7 @@ export default function HomePage() {
 
             {/* Subheading */}
             <p className="text-body-lg text-content-secondary max-w-2xl mx-auto mb-10 animate-slide-up animation-delay-200">
-              TaskFlow helps you capture, organize, and accomplish your tasks with
+              Fehrist helps you capture, organize, and accomplish your tasks with
               an intuitive interface designed for the way you work.
             </p>
 

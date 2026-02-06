@@ -205,10 +205,10 @@ async def update_task(
     """
     Update an existing task.
 
-    All fields are optional - only provided fields will be updated:
-    - **title**: New task title
-    - **description**: New task description
-    - **completed**: New completion status
+    All fields are optional - only provided fields will be updated.
+    Use **status** to change completion state (preferred).
+    **completed** is still supported for backwards compatibility.
+    If both status and completed are sent, status takes precedence.
     """
     # Task: T064 - Verify user access
     verify_user_access(request, user_id)

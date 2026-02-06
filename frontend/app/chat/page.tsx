@@ -2,11 +2,22 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Header } from "@/components/layout/Header";
 import { api } from "@/lib/api";
 import type { ToolCall } from "@/lib/api";
-import { Send, RefreshCw, Bot, User, Loader2 } from "lucide-react";
+import { taskKeys } from "@/lib/hooks/useTasks";
+import { statisticsKeys } from "@/lib/hooks/useStatistics";
+import { Send, RefreshCw, Bot, User, Loader2, Mic, MicOff } from "lucide-react";
+
+/** Tool names that mutate tasks – when these appear we must invalidate the dashboard cache */
+const TASK_MUTATING_TOOLS = new Set([
+  "add_task",
+  "complete_task",
+  "update_task",
+  "delete_task",
+]);
 
 interface UIMessage {
   id: string;
@@ -29,16 +40,32 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
 
   const toolConfig: Record<string, { label: string; className: string }> = {
-    add_task: { label: "Task Added", className: "text-state-success bg-state-success-light" },
-    list_tasks: { label: "Tasks Listed", className: "text-state-info bg-state-info-light" },
-    complete_task: { label: "Task Completed", className: "text-state-success bg-state-success-light" },
-    update_task: { label: "Task Updated", className: "text-state-warning bg-state-warning-light" },
-    delete_task: { label: "Task Deleted", className: "text-state-error bg-state-error-light" },
+    add_task: {
+      label: "Task Added",
+      className: "text-state-success bg-state-success-light",
+    },
+    list_tasks: {
+      label: "Tasks Listed",
+      className: "text-state-info bg-state-info-light",
+    },
+    complete_task: {
+      label: "Task Completed",
+      className: "text-state-success bg-state-success-light",
+    },
+    update_task: {
+      label: "Task Updated",
+      className: "text-state-warning bg-state-warning-light",
+    },
+    delete_task: {
+      label: "Task Deleted",
+      className: "text-state-error bg-state-error-light",
+    },
   };
 
   const config = toolConfig[toolCall.tool] ?? {
     label: toolCall.tool,
-    className: "text-content-secondary bg-surface-base border border-border-subtle",
+    className:
+      "text-content-secondary bg-surface-base border border-border-subtle",
   };
 
   return (
@@ -55,7 +82,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           stroke="currentColor"
           strokeWidth={2.5}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
       {expanded && (
@@ -86,9 +117,30 @@ export default function ChatPage() {
     }
   });
 
+  // Voice input states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognitionSupported, setRecognitionSupported] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const queryClient = useQueryClient();
   const userId = session?.user?.id;
+
+  /** Invalidate task/statistics caches when chat tool calls mutate tasks */
+  const invalidateTaskCacheIfNeeded = useCallback(
+    (toolCalls: ToolCall[] | null | undefined) => {
+      if (!userId || !toolCalls?.length) return;
+      const hasMutation = toolCalls.some((tc) =>
+        TASK_MUTATING_TOOLS.has(tc.tool),
+      );
+      if (hasMutation) {
+        queryClient.invalidateQueries({ queryKey: taskKeys.all(userId) });
+        queryClient.invalidateQueries({ queryKey: statisticsKeys.all(userId) });
+      }
+    },
+    [userId, queryClient],
+  );
 
   // Auth redirect
   useEffect(() => {
@@ -100,7 +152,7 @@ export default function ChatPage() {
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  }, [messages]);
 
   // Focus input after auth resolves
   useEffect(() => {
@@ -108,6 +160,48 @@ export default function ChatPage() {
       inputRef.current?.focus();
     }
   }, [authLoading, session]);
+
+  // Load conversation messages when resuming
+  useEffect(() => {
+    if (!userId || !conversationId || messages.length > 0) return;
+
+    const loadConversationMessages = async () => {
+      try {
+        setIsLoading(true);
+        const data = await api.getConversationMessages(userId, conversationId);
+
+        // Transform backend messages to UI messages
+        const loadedMessages: UIMessage[] = data.messages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          tool_calls: msg.tool_calls || undefined,
+          timestamp: new Date(msg.timestamp),
+        }));
+
+        setMessages(loadedMessages);
+        setError(null);
+      } catch (err) {
+        // If conversation doesn't exist, clear it
+        if (
+          err instanceof Error &&
+          (err.message.includes("Conversation not found") ||
+            err.message.includes("404"))
+        ) {
+          console.log("Conversation not found, clearing...");
+          setConversationId(null);
+          localStorage.removeItem(STORAGE_KEY);
+        } else {
+          console.error("Failed to load conversation messages:", err);
+          setError("Failed to load previous conversation");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadConversationMessages();
+  }, [userId, conversationId, messages.length]);
 
   // Persist conversation ID
   useEffect(() => {
@@ -130,6 +224,75 @@ export default function ChatPage() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [input]);
+
+  // Initialize Web Speech API for voice input
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      setRecognitionSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        setIsRecording(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsRecording(false);
+        if (event.error === "not-allowed") {
+          setError(
+            "Microphone access denied. Please enable microphone permissions.",
+          );
+        }
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+    };
+  }, []);
+
+  // Voice recording toggle
+  const toggleRecording = () => {
+    if (!recognitionRef.current) return;
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+        setError(null);
+      } catch (error) {
+        console.error("Failed to start recording:", error);
+        setIsRecording(false);
+        setError("Failed to start voice input. Please try again.");
+      }
+    }
+  };
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -164,21 +327,67 @@ export default function ChatPage() {
             id: `assistant-${Date.now()}`,
             role: "assistant" as const,
             content: response.response,
-            tool_calls: response.tool_calls?.length ? response.tool_calls : undefined,
+            tool_calls: response.tool_calls?.length
+              ? response.tool_calls
+              : undefined,
             timestamp: new Date(),
           },
         ]);
+
+        // Invalidate dashboard task cache when chat mutates tasks
+        invalidateTaskCacheIfNeeded(response.tool_calls);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to send message");
+        // Handle conversation not found error - clear localStorage and retry with new conversation
+        if (
+          err instanceof Error &&
+          err.message.includes("Conversation not found")
+        ) {
+          console.log("Conversation not found, starting new one...");
+          setConversationId(null);
+          localStorage.removeItem(STORAGE_KEY);
+
+          // Retry with new conversation
+          try {
+            const response = await api.sendChat(userId, {
+              conversation_id: null,
+              message: text.trim(),
+            });
+
+            setConversationId(response.conversation_id);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `assistant-${Date.now()}`,
+                role: "assistant" as const,
+                content: response.response,
+                tool_calls: response.tool_calls?.length
+                  ? response.tool_calls
+                  : undefined,
+                timestamp: new Date(),
+              },
+            ]);
+            invalidateTaskCacheIfNeeded(response.tool_calls);
+            setError(null);
+          } catch (retryErr) {
+            setError(
+              retryErr instanceof Error
+                ? retryErr.message
+                : "Failed to send message",
+            );
+          }
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Failed to send message",
+          );
+        }
       } finally {
         setIsLoading(false);
       }
     },
-    [userId, conversationId, isLoading]
+    [userId, conversationId, isLoading, invalidateTaskCacheIfNeeded],
   );
 
   const handleNewChat = () => {
-    setMessages([]);
     setConversationId(null);
     setError(null);
     setInput("");
@@ -220,7 +429,9 @@ export default function ChatPage() {
         {/* Page header */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0">
           <div>
-            <h1 className="text-lg font-semibold text-content-primary">Chat Assistant</h1>
+            <h1 className="text-lg font-semibold text-content-primary">
+              Chat Assistant
+            </h1>
             <p className="text-xs text-content-secondary mt-0.5">
               Manage your tasks with natural language
             </p>
@@ -251,7 +462,8 @@ export default function ChatPage() {
                     Resuming previous conversation
                   </h2>
                   <p className="text-xs text-content-secondary mb-4 max-w-[280px]">
-                    Your previous context is loaded. Send a message to continue, or start fresh.
+                    Your previous context is loaded. Send a message to continue,
+                    or start fresh.
                   </p>
                   <button
                     onClick={handleNewChat}
@@ -266,8 +478,8 @@ export default function ChatPage() {
                     How can I help you today?
                   </h2>
                   <p className="text-xs text-content-secondary mb-5 max-w-[320px]">
-                    I can help you add, list, complete, update, and delete tasks using natural
-                    language.
+                    I can help you add, list, complete, update, and delete tasks
+                    using natural language.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-[400px]">
                     {SUGGESTED_PROMPTS.map((prompt) => (
@@ -296,11 +508,13 @@ export default function ChatPage() {
                   {/* Avatar */}
                   <div
                     className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
-                      msg.role === "user" ? "bg-action-primary" : "bg-action-secondary"
+                      msg.role === "user"
+                        ? "bg-action-primary"
+                        : "bg-action-secondary"
                     }`}
                   >
                     {msg.role === "user" ? (
-                      <User className="w-3.5 h-3.5 text-content-inverse" />
+                      <User className="w-3.5 h-3.5 text-white" />
                     ) : (
                       <Bot className="w-3.5 h-3.5 text-action-primary" />
                     )}
@@ -314,11 +528,19 @@ export default function ChatPage() {
                     <div
                       className={`rounded-2xl px-3.5 py-2 ${
                         msg.role === "user"
-                          ? "bg-action-primary text-content-inverse rounded-tr-sm"
-                          : "bg-surface-base border border-border-subtle text-content-primary rounded-tl-sm"
+                          ? "bg-action-primary rounded-tr-sm"
+                          : "bg-surface-base border border-border-subtle rounded-tl-sm"
                       }`}
                     >
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      <p
+                        className={`text-sm leading-relaxed whitespace-pre-wrap ${
+                          msg.role === "user"
+                            ? "text-white"
+                            : "text-content-primary"
+                        }`}
+                      >
+                        {msg.content}
+                      </p>
                     </div>
 
                     {/* Tool call badges */}
@@ -332,7 +554,10 @@ export default function ChatPage() {
 
                     {/* Timestamp */}
                     <span className="text-[10px] text-content-tertiary mt-1 px-0.5">
-                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(msg.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
                 </div>
@@ -342,7 +567,9 @@ export default function ChatPage() {
 
           {/* Typing indicator */}
           {isLoading && (
-            <div className={`flex items-start gap-2.5 ${hasMessages ? "mt-4" : ""}`}>
+            <div
+              className={`flex items-start gap-2.5 ${hasMessages ? "mt-4" : ""}`}
+            >
               <div className="flex-shrink-0 w-7 h-7 rounded-full bg-action-secondary flex items-center justify-center">
                 <Bot className="w-3.5 h-3.5 text-action-primary" />
               </div>
@@ -367,7 +594,9 @@ export default function ChatPage() {
 
           {/* Error banner */}
           {error && (
-            <div className={`p-3 bg-state-error-light rounded-xl border border-red-200 ${hasMessages ? "mt-4" : ""}`}>
+            <div
+              className={`p-3 bg-state-error-light rounded-xl border border-red-200 ${hasMessages ? "mt-4" : ""}`}
+            >
               <div className="flex items-center justify-between">
                 <p className="text-xs text-state-error">{error}</p>
                 <button
@@ -382,7 +611,11 @@ export default function ChatPage() {
                     stroke="currentColor"
                     strokeWidth={2}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -392,7 +625,7 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
+        {/* Input area with voice support */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -400,30 +633,64 @@ export default function ChatPage() {
           }}
           className="mt-3 flex-shrink-0"
         >
-          <div className="flex items-end gap-2 p-1.5 bg-surface-raised border border-border-subtle rounded-2xl">
+          <div className="flex items-end gap-2 p-1.5 bg-surface-raised border border-border-subtle rounded-2xl shadow-sm">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
+              placeholder={
+                isRecording ? "Listening..." : "Type a message or use voice..."
+              }
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm text-content-primary placeholder-slate-400 outline-none px-3 py-2 leading-relaxed"
               style={{ minHeight: "40px", maxHeight: "128px" }}
-              disabled={isLoading}
+              disabled={isLoading || isRecording}
               aria-label="Chat message input"
             />
+
+            {/* Voice Input Button */}
+            {recognitionSupported && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                disabled={isLoading}
+                className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                  isRecording
+                    ? "bg-state-error text-white animate-pulse"
+                    : "bg-action-secondary text-content-secondary hover:bg-action-secondary-hover"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                aria-label={
+                  isRecording ? "Stop recording" : "Start voice input"
+                }
+                title={isRecording ? "Stop recording" : "Start voice input"}
+              >
+                {isRecording ? (
+                  <MicOff className="w-4 h-4" />
+                ) : (
+                  <Mic className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
+            {/* Send Button */}
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 w-9 h-9 rounded-xl bg-action-primary text-content-inverse flex items-center justify-center hover:bg-action-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-shrink-0 w-9 h-9 rounded-xl bg-action-primary text-white flex items-center justify-center hover:bg-action-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Send message"
             >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </div>
           <p className="text-[10px] text-content-tertiary text-center mt-2">
-            Enter to send · Shift+Enter for new line
+            {recognitionSupported
+              ? "Enter to send · Click mic for voice input"
+              : "Enter to send · Shift+Enter for new line"}
           </p>
         </form>
       </div>

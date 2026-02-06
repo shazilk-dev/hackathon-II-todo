@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { api, Task } from "@/lib/api";
+import { useState, useMemo } from "react";
+import { Task } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { TaskItem } from "./TaskItem";
 import { TaskForm } from "./TaskForm";
+import {
+  useTasks,
+  useCreateTask,
+  useUpdateTask,
+  useToggleTaskComplete,
+  useDeleteTask,
+} from "@/lib/hooks";
 import { ListTodo, Clock, CheckCircle2, Inbox } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed";
@@ -17,50 +24,28 @@ const filterConfig = {
 
 export function TaskList() {
   const { data: session } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
 
   const userId = session?.user?.id;
 
-  const fetchTasks = useCallback(async () => {
-    if (!userId) return;
+  // React Query hooks
+  const { data: allTasks = [], isLoading, error } = useTasks(userId, "all");
+  const createTaskMutation = useCreateTask(userId);
+  const updateTaskMutation = useUpdateTask(userId);
+  const toggleCompleteMutation = useToggleTaskComplete(userId);
+  const deleteTaskMutation = useDeleteTask(userId);
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.getTasks(userId, filter);
-      setTasks(response.tasks);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch tasks");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId, filter]);
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  const handleTaskCreated = (task: Task) => {
-    setTasks(prev => [task, ...prev]);
-  };
-
-  const handleTaskUpdated = (updatedTask: Task) => {
-    setTasks(prev =>
-      prev.map(task => task.id === updatedTask.id ? updatedTask : task)
-    );
-  };
-
-  const handleTaskDeleted = (taskId: number) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId));
-  };
+  // Client-side filtering (instant, no API call)
+  const tasks = useMemo(() => {
+    if (filter === "all") return allTasks;
+    if (filter === "pending") return allTasks.filter((t) => !t.completed);
+    if (filter === "completed") return allTasks.filter((t) => t.completed);
+    return allTasks;
+  }, [allTasks, filter]);
 
   // Task counts for badges
-  const pendingCount = tasks.filter(t => !t.completed).length;
-  const completedCount = tasks.filter(t => t.completed).length;
+  const pendingCount = allTasks.filter((t) => !t.completed).length;
+  const completedCount = allTasks.filter((t) => t.completed).length;
 
   if (!userId) {
     return (
@@ -73,7 +58,11 @@ export function TaskList() {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Add Task Form */}
-      <TaskForm userId={userId} onTaskCreated={handleTaskCreated} />
+      <TaskForm
+        userId={userId}
+        onCreateTask={createTaskMutation.mutate}
+        isCreating={createTaskMutation.isPending}
+      />
 
       {/* Stats & Filter Row */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -81,15 +70,21 @@ export function TaskList() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-content-tertiary">Total</span>
-            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">{tasks.length}</span>
+            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-info-light text-state-info">
+              {allTasks.length}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-content-tertiary">Pending</span>
-            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">{pendingCount}</span>
+            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-warning-light text-state-warning">
+              {pendingCount}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-content-tertiary">Done</span>
-            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">{completedCount}</span>
+            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-semibold rounded-full bg-state-success-light text-state-success">
+              {completedCount}
+            </span>
           </div>
         </div>
 
@@ -120,7 +115,10 @@ export function TaskList() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-surface-raised rounded-xl p-3 border border-border-subtle animate-pulse">
+            <div
+              key={i}
+              className="bg-surface-raised rounded-xl p-3 border border-border-subtle animate-pulse"
+            >
               <div className="flex items-start gap-3">
                 <div className="skeleton w-5 h-5 rounded" />
                 <div className="flex-1 space-y-2">
@@ -134,10 +132,20 @@ export function TaskList() {
       ) : error ? (
         <div className="bg-state-error-light rounded-xl p-3 border border-state-error/20">
           <div className="flex items-center gap-2 text-state-error">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
-            <p className="text-xs">{error}</p>
+            <p className="text-xs text-state-error">{error.message}</p>
           </div>
         </div>
       ) : tasks.length === 0 ? (
@@ -147,13 +155,15 @@ export function TaskList() {
               <Inbox className="w-5 h-5 text-action-primary" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-content-primary mb-1">No tasks yet</h3>
+              <h3 className="text-sm font-medium text-content-primary mb-1">
+                No tasks yet
+              </h3>
               <p className="text-xs text-content-tertiary">
                 {filter === "all"
                   ? "Create your first task above to get started"
                   : filter === "pending"
-                  ? "No pending tasks - you're all caught up!"
-                  : "No completed tasks yet"}
+                    ? "No pending tasks - you're all caught up!"
+                    : "No completed tasks yet"}
               </p>
             </div>
           </div>
@@ -169,8 +179,9 @@ export function TaskList() {
               <TaskItem
                 task={task}
                 userId={userId}
-                onUpdate={handleTaskUpdated}
-                onDelete={handleTaskDeleted}
+                onUpdateTask={updateTaskMutation.mutate}
+                onToggleComplete={toggleCompleteMutation.mutate}
+                onDeleteTask={deleteTaskMutation.mutate}
               />
             </div>
           ))}

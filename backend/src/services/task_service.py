@@ -56,7 +56,7 @@ class TaskService:
         from sqlalchemy import case
         from sqlalchemy.orm import selectinload
         from datetime import timedelta
-        from src.models.tag import TaskTag, Tag
+        from src.models.tag import TaskTag
 
         # Base query with user isolation
         statement = select(Task).where(Task.user_id == user_id)
@@ -232,6 +232,11 @@ class TaskService:
         Task: T044
         Update an existing task with user isolation.
 
+        Status is the single source of truth:
+        - Setting status syncs completed (done → True, else → False)
+        - Setting completed syncs status (True → done, False → backlog)
+        - If both are provided, status takes precedence.
+
         Args:
             session: Async database session
             user_id: ID of the user (from JWT)
@@ -244,35 +249,42 @@ class TaskService:
         Raises:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
+        from sqlalchemy.orm import selectinload
+        from src.models.tag import TaskTag
+
         # Get existing task (raises TaskNotFoundError if not found)
         task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
-        # Apply updates (only non-None fields)
+        # Apply simple field updates (only non-None fields)
         if task_data.title is not None:
             task.title = task_data.title
         if task_data.description is not None:
             task.description = task_data.description
-        if task_data.completed is not None:
-            task.completed = task_data.completed
-            # Sync status with completed for backwards compatibility
-            task.status = "done" if task_data.completed else "backlog"
         if task_data.due_date is not None:
             task.due_date = task_data.due_date
         if task_data.priority is not None:
             task.priority = task_data.priority
+
+        # Sync status ↔ completed (status is the single source of truth)
         if task_data.status is not None:
             task.status = task_data.status
-            # Sync completed with status for backwards compatibility
             task.completed = (task_data.status == "done")
-
-        # Update timestamp
-        task.updated_at = datetime.utcnow()
+        elif task_data.completed is not None:
+            task.completed = task_data.completed
+            task.status = "done" if task_data.completed else "backlog"
 
         session.add(task)
         await session.commit()
 
-        # Reload with tags for response (1 additional query for tags)
-        return await TaskService.get_task(session, user_id, task_id, load_tags=True)
+        # Refresh in-place with tags for response (avoids full re-fetch query)
+        await session.refresh(task)
+        # Eager-load tags via a follow-up selectinload
+        result = await session.execute(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(selectinload(Task.task_tags).selectinload(TaskTag.tag_rel))
+        )
+        return result.scalar_one()
 
     @staticmethod
     async def delete_task(
@@ -342,7 +354,8 @@ class TaskService:
         Task: T046
         Toggle the completion status of a task.
 
-        Maps to status changes: done ↔ backlog
+        Maps to status changes: done ↔ backlog.
+        Logs completion atomically within the same transaction.
 
         Args:
             session: Async database session
@@ -355,6 +368,9 @@ class TaskService:
         Raises:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
+        from sqlalchemy.orm import selectinload
+        from src.models.tag import TaskTag
+
         # Get existing task (raises TaskNotFoundError if not found)
         task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
@@ -364,18 +380,23 @@ class TaskService:
         # Toggle completion and sync with status
         task.completed = not task.completed
         task.status = "done" if task.completed else "backlog"
-        task.updated_at = datetime.utcnow()
 
         session.add(task)
-        await session.commit()
 
-        # Log completion if task was just marked as complete
+        # Log completion BEFORE commit so both are in one transaction
         if task.completed and not old_completed:
             from src.services.statistics_service import StatisticsService
             await StatisticsService.log_completion(session, user_id, task_id)
 
-        # Reload with tags for response (1 additional query for tags)
-        return await TaskService.get_task(session, user_id, task_id, load_tags=True)
+        await session.commit()
+
+        # Reload with tags for response
+        result = await session.execute(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(selectinload(Task.task_tags).selectinload(TaskTag.tag_rel))
+        )
+        return result.scalar_one()
 
     @staticmethod
     async def change_status(
@@ -386,6 +407,9 @@ class TaskService:
     ) -> Task:
         """
         Change the status of a task.
+
+        Logs completion atomically within the same transaction when
+        status changes to 'done'.
 
         Args:
             session: Async database session
@@ -399,6 +423,9 @@ class TaskService:
         Raises:
             TaskNotFoundError: If task doesn't exist or doesn't belong to user
         """
+        from sqlalchemy.orm import selectinload
+        from src.models.tag import TaskTag
+
         # Get existing task (raises TaskNotFoundError if not found)
         task = await TaskService.get_task(session, user_id, task_id, load_tags=False)
 
@@ -408,15 +435,20 @@ class TaskService:
         # Update status and sync completed field
         task.status = new_status
         task.completed = (new_status == "done")
-        task.updated_at = datetime.utcnow()
 
         session.add(task)
-        await session.commit()
 
-        # Log completion if task was just marked as done
+        # Log completion BEFORE commit so both are in one transaction
         if new_status == "done" and old_status != "done":
             from src.services.statistics_service import StatisticsService
             await StatisticsService.log_completion(session, user_id, task_id)
 
-        # Reload with tags for response (1 additional query for tags)
-        return await TaskService.get_task(session, user_id, task_id, load_tags=True)
+        await session.commit()
+
+        # Reload with tags for response
+        result = await session.execute(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(selectinload(Task.task_tags).selectinload(TaskTag.tag_rel))
+        )
+        return result.scalar_one()

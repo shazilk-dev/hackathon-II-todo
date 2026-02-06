@@ -5,6 +5,7 @@ Task completion tracking model for statistics and streaks.
 from datetime import datetime
 from typing import Literal, Optional
 
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlmodel import Field, SQLModel
 
 
@@ -25,16 +26,22 @@ class TaskCompletion(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(
-        foreign_key="user.id",
-        index=True,
-        nullable=False,
-        description="User who completed the task"
+        sa_column=Column(
+            String,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+        description="User who completed the task",
     )
     task_id: int = Field(
-        foreign_key="tasks.id",
-        index=True,
-        nullable=False,
-        description="Completed task ID"
+        sa_column=Column(
+            Integer,
+            ForeignKey("tasks.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+        description="Completed task ID",
     )
     completed_at: datetime = Field(
         default_factory=datetime.utcnow,
@@ -60,16 +67,22 @@ class FocusSession(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(
-        foreign_key="user.id",
-        index=True,
-        nullable=False,
-        description="User who started the session"
+        sa_column=Column(
+            String,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+        description="User who started the session",
     )
     task_id: int = Field(
-        foreign_key="tasks.id",
-        index=True,
-        nullable=False,
-        description="Task being focused on"
+        sa_column=Column(
+            Integer,
+            ForeignKey("tasks.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+        description="Task being focused on",
     )
     started_at: datetime = Field(
         default_factory=datetime.utcnow,
