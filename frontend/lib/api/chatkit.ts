@@ -49,7 +49,7 @@ export async function getChatKitClientSecret(): Promise<string> {
   }
 
   // Get JWT token from token exchange endpoint
-  const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3000';
+  const AUTH_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3000');
   const tokenResponse = await fetch(`${AUTH_URL}/api/auth/token`, {
     credentials: 'include' // Include NextAuth session cookie
   });

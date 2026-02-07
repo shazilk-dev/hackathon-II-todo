@@ -1,12 +1,24 @@
 import { getSession } from "./auth-client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:3000";
+// Client-side: use proxy through Next.js rewrites (browser can't reach internal K8s services)
+// Server-side: use direct internal cluster communication
+const API_URL =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/backend` // Client: proxied via Next.js rewrite → backend service
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const AUTH_URL =
+  typeof window !== "undefined"
+    ? "" // Client: same origin (relative URL)
+    : process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:3000";
 
 // Remove API URL logging
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -15,8 +27,15 @@ class ApiError extends Error {
 // Cache for JWT token to avoid fetching on every request
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+// Clear the cached token (call on sign-out)
+export function clearTokenCache() {
+  cachedToken = null;
+  tokenFetchPromise = null;
+}
+
 // Mutex to prevent concurrent token fetches
-let tokenFetchPromise: Promise<{ token: string; expiresAt: number }> | null = null;
+let tokenFetchPromise: Promise<{ token: string; expiresAt: number }> | null =
+  null;
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   // First verify we have a Better Auth session
@@ -36,8 +55,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   if (cachedToken && cachedToken.expiresAt > now + 300) {
     // Token is still valid (with 5-minute buffer)
     return {
-      "Authorization": `Bearer ${cachedToken.token}`,
-      "Content-Type": "application/json"
+      Authorization: `Bearer ${cachedToken.token}`,
+      "Content-Type": "application/json",
     };
   }
 
@@ -47,8 +66,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     try {
       const tokenData = await tokenFetchPromise;
       return {
-        "Authorization": `Bearer ${tokenData.token}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${tokenData.token}`,
+        "Content-Type": "application/json",
       };
     } catch (error) {
       // If the in-progress fetch failed, continue to try fetching again
@@ -63,7 +82,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   tokenFetchPromise = (async () => {
     try {
       const tokenResponse = await fetch(`${AUTH_URL}/api/auth/token`, {
-        credentials: "include" // Include Better Auth session cookie
+        credentials: "include", // Include Better Auth session cookie
       });
 
       if (!tokenResponse.ok) {
@@ -80,7 +99,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
       const now = Date.now() / 1000;
       cachedToken = {
         token: tokenData.token,
-        expiresAt: now + (60 * 60 * 24 * 7) // 7 days
+        expiresAt: now + 60 * 60 * 24 * 7, // 7 days
       };
 
       return cachedToken;
@@ -97,14 +116,16 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
   const tokenData = await tokenFetchPromise;
   return {
-    "Authorization": `Bearer ${tokenData.token}`,
-    "Content-Type": "application/json"
+    Authorization: `Bearer ${tokenData.token}`,
+    "Content-Type": "application/json",
   };
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    const error = await response
+      .json()
+      .catch(() => ({ detail: "Unknown error" }));
     throw new ApiError(response.status, error.detail || response.statusText);
   }
   return response.json();
@@ -114,9 +135,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
 function isSuppressibleError(error: unknown): boolean {
   if (error instanceof Error) {
     // Suppress AbortError (happens when requests are cancelled/duplicated)
-    if (error.name === 'AbortError') return true;
+    if (error.name === "AbortError") return true;
     // Suppress message port errors (browser extension communication issues)
-    if (error.message.includes('message port')) return true;
+    if (error.message.includes("message port")) return true;
   }
   return false;
 }
@@ -128,7 +149,7 @@ export interface Tag {
   id: number;
   user_id: string;
   name: string;
-  color: string;  // hex color (#RRGGBB)
+  color: string; // hex color (#RRGGBB)
   created_at: string;
 }
 
@@ -138,7 +159,7 @@ export interface Task {
   title: string;
   description: string | null;
   completed: boolean;
-  due_date: string | null;  // ISO 8601
+  due_date: string | null; // ISO 8601
   priority: PriorityType;
   status: StatusType;
   tags: Tag[];
@@ -184,8 +205,8 @@ export interface FocusSession {
   id: number;
   user_id: string;
   task_id: number;
-  started_at: string;  // ISO 8601
-  ended_at: string | null;  // ISO 8601 or null if still running
+  started_at: string; // ISO 8601
+  ended_at: string | null; // ISO 8601 or null if still running
   duration_minutes: DurationType;
   completed: boolean;
   notes: string | null;
@@ -203,12 +224,12 @@ export interface UpdateFocusSessionData {
 
 // Statistics types
 export interface DayStatistics {
-  date: string;  // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   completed_count: number;
 }
 
 export interface WeeklyStatistics {
-  week_start: string;  // YYYY-MM-DD
+  week_start: string; // YYYY-MM-DD
   days: DayStatistics[];
   total: number;
 }
@@ -216,14 +237,14 @@ export interface WeeklyStatistics {
 export interface StreakInfo {
   current_streak: number;
   longest_streak: number;
-  last_completion_date: string | null;  // YYYY-MM-DD
+  last_completion_date: string | null; // YYYY-MM-DD
 }
 
 export interface TaskStatistics {
   total_tasks: number;
   completed_tasks: number;
   pending_tasks: number;
-  completion_rate: number;  // 0-100
+  completion_rate: number; // 0-100
   total_completions: number;
 }
 
@@ -253,7 +274,10 @@ export interface ChatResponse {
 
 export const api = {
   // Get all tasks for user
-  async getTasks(userId: string, status: "all" | "pending" | "completed" = "all"): Promise<TasksResponse> {
+  async getTasks(
+    userId: string,
+    status: "all" | "pending" | "completed" = "all",
+  ): Promise<TasksResponse> {
     try {
       const headers = await getAuthHeaders();
       const url = new URL(`${API_URL}/api/${userId}/tasks`);
@@ -261,12 +285,15 @@ export const api = {
 
       const response = await fetch(url.toString(), {
         headers,
-        cache: 'no-store'
+        cache: "no-store",
       });
       return handleResponse<TasksResponse>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -280,13 +307,16 @@ export const api = {
       const response = await fetch(`${API_URL}/api/${userId}/tasks`, {
         method: "POST",
         headers,
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
 
       return handleResponse<Task>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -298,52 +328,68 @@ export const api = {
       const headers = await getAuthHeaders();
 
       const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}`, {
-        headers
+        headers,
       });
 
       return handleResponse<Task>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Update task
-  async updateTask(userId: string, taskId: number, data: UpdateTaskData): Promise<Task> {
+  async updateTask(
+    userId: string,
+    taskId: number,
+    data: UpdateTaskData,
+  ): Promise<Task> {
     try {
       const headers = await getAuthHeaders();
 
       const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}`, {
         method: "PUT",
         headers,
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
 
       return handleResponse<Task>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Delete task
-  async deleteTask(userId: string, taskId: number): Promise<{ message: string }> {
+  async deleteTask(
+    userId: string,
+    taskId: number,
+  ): Promise<{ message: string }> {
     try {
       const headers = await getAuthHeaders();
 
       const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}`, {
         method: "DELETE",
-        headers
+        headers,
       });
 
       return handleResponse<{ message: string }>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -354,35 +400,51 @@ export const api = {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}/complete`, {
-        method: "PATCH",
-        headers
-      });
+      const response = await fetch(
+        `${API_URL}/api/${userId}/tasks/${taskId}/complete`,
+        {
+          method: "PATCH",
+          headers,
+        },
+      );
 
       return handleResponse<Task>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Change task status
-  async changeStatus(userId: string, taskId: number, status: StatusType): Promise<Task> {
+  async changeStatus(
+    userId: string,
+    taskId: number,
+    status: StatusType,
+  ): Promise<Task> {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}/status`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ status })
-      });
+      const response = await fetch(
+        `${API_URL}/api/${userId}/tasks/${taskId}/status`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ status }),
+        },
+      );
 
       return handleResponse<Task>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -395,13 +457,16 @@ export const api = {
 
       const response = await fetch(`${API_URL}/api/${userId}/tags`, {
         headers,
-        cache: 'no-store'
+        cache: "no-store",
       });
 
       return handleResponse<TagsResponse>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -415,33 +480,46 @@ export const api = {
       const response = await fetch(`${API_URL}/api/${userId}/tags`, {
         method: "POST",
         headers,
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
 
       return handleResponse<Tag>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Update task tags
-  async updateTaskTags(userId: string, taskId: number, tagIds: number[]): Promise<{ message: string }> {
+  async updateTaskTags(
+    userId: string,
+    taskId: number,
+    tagIds: number[],
+  ): Promise<{ message: string }> {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_URL}/api/${userId}/tasks/${taskId}/tags`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ tag_ids: tagIds })
-      });
+      const response = await fetch(
+        `${API_URL}/api/${userId}/tasks/${taskId}/tags`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ tag_ids: tagIds }),
+        },
+      );
 
       return handleResponse<{ message: string }>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -456,13 +534,16 @@ export const api = {
 
       const response = await fetch(`${API_URL}/api/${userId}/statistics`, {
         headers,
-        cache: 'no-store'
+        cache: "no-store",
       });
 
       return handleResponse<UserStatistics>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -471,40 +552,56 @@ export const api = {
   // Focus Sessions API
 
   // Start a focus session
-  async startFocusSession(userId: string, data: CreateFocusSessionData): Promise<FocusSession> {
+  async startFocusSession(
+    userId: string,
+    data: CreateFocusSessionData,
+  ): Promise<FocusSession> {
     try {
       const headers = await getAuthHeaders();
 
       const response = await fetch(`${API_URL}/api/${userId}/focus-sessions`, {
         method: "POST",
         headers,
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
 
       return handleResponse<FocusSession>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // End a focus session
-  async endFocusSession(userId: string, sessionId: number, data: UpdateFocusSessionData): Promise<FocusSession> {
+  async endFocusSession(
+    userId: string,
+    sessionId: number,
+    data: UpdateFocusSessionData,
+  ): Promise<FocusSession> {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_URL}/api/${userId}/focus-sessions/${sessionId}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify(data)
-      });
+      const response = await fetch(
+        `${API_URL}/api/${userId}/focus-sessions/${sessionId}`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(data),
+        },
+      );
 
       return handleResponse<FocusSession>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -515,10 +612,13 @@ export const api = {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_URL}/api/${userId}/focus-sessions/active`, {
-        headers,
-        cache: 'no-store'
-      });
+      const response = await fetch(
+        `${API_URL}/api/${userId}/focus-sessions/active`,
+        {
+          headers,
+          cache: "no-store",
+        },
+      );
 
       if (response.status === 404) {
         return null;
@@ -526,15 +626,22 @@ export const api = {
 
       return handleResponse<FocusSession>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Get focus sessions
-  async getFocusSessions(userId: string, taskId?: number, limit?: number): Promise<FocusSession[]> {
+  async getFocusSessions(
+    userId: string,
+    taskId?: number,
+    limit?: number,
+  ): Promise<FocusSession[]> {
     try {
       const headers = await getAuthHeaders();
       const url = new URL(`${API_URL}/api/${userId}/focus-sessions`);
@@ -544,13 +651,16 @@ export const api = {
 
       const response = await fetch(url.toString(), {
         headers,
-        cache: 'no-store'
+        cache: "no-store",
       });
 
       return handleResponse<FocusSession[]>(response);
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
@@ -568,14 +678,20 @@ export const api = {
       return handleResponse<ChatResponse>(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes("fetch")) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
   },
 
   // Get conversation messages
-  async getConversationMessages(userId: string, conversationId: number): Promise<{
+  async getConversationMessages(
+    userId: string,
+    conversationId: number,
+  ): Promise<{
     messages: Array<{
       id: string;
       role: "user" | "assistant";
@@ -589,14 +705,17 @@ export const api = {
       const headers = await getAuthHeaders();
       const response = await fetch(
         `${API_URL}/api/${userId}/conversations/${conversationId}/messages`,
-        { headers, cache: 'no-store' }
+        { headers, cache: "no-store" },
       );
       return handleResponse(response);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes("fetch")) {
-        throw new ApiError(503, `Backend server is not reachable at ${API_URL}. Please check your connection.`);
+        throw new ApiError(
+          503,
+          `Backend server is not reachable at ${API_URL}. Please check your connection.`,
+        );
       }
       throw error;
     }
-  }
+  },
 };

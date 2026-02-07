@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { signOut } from "@/lib/auth-client";
+import { clearTokenCache } from "@/lib/api";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,8 +23,15 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
+    // Clear cached JWT token
+    clearTokenCache();
+    // Call Better Auth sign-out
     await signOut();
+    // Manually clear auth cookies in case of domain mismatch
+    document.cookie = 'better-auth.session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = 'session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
     router.push("/");
+    router.refresh();
   };
 
   const navLinks = [

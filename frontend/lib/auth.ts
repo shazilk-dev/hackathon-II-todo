@@ -16,6 +16,10 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BASE_URL,
   trustHost: true,
+  trustedOrigins: [
+    "http://135.235.178.119",
+    "https://fehrist.shazilkhan.dev",
+  ],
 
   // Session configuration
   session: {

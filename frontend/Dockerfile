@@ -31,10 +31,14 @@ ENV NODE_ENV=production
 # Real values will be provided at runtime via Kubernetes ConfigMap/Secrets
 ARG DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ARG AUTH_SECRET=dummy-secret-for-build-only-replace-at-runtime-with-real-secret-min-32-chars
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG BETTER_AUTH_SECRET=dummy-secret-for-build-only-replace-at-runtime-with-real-secret-min-32-chars
+ARG BETTER_AUTH_URL=http://localhost:3000
+ARG NEXT_PUBLIC_API_URL=http://todo-backend-service:8000
 
 ENV DATABASE_URL=${DATABASE_URL}
 ENV AUTH_SECRET=${AUTH_SECRET}
+ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Build Next.js application (creates .next directory with standalone output)
