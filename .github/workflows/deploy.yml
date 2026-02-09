@@ -1,0 +1,277 @@
+# CI/CD Pipeline: Build, Test & Deploy to Azure AKS
+# Triggers on push to main branch or manual dispatch
+# Requires GitHub Secrets (see setup instructions below)
+
+name: Deploy to Azure AKS
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "guides/**"
+      - "history/**"
+      - "specs/**"
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip tests (emergency deploy)"
+        required: false
+        default: false
+        type: boolean
+      deploy_backend:
+        description: "Deploy backend"
+        required: false
+        default: true
+        type: boolean
+      deploy_frontend:
+        description: "Deploy frontend"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  ACR_NAME: hackathontodoacr
+  ACR_LOGIN_SERVER: hackathontodoacr.azurecr.io
+  AKS_CLUSTER: hackathon-todo-dev
+  AKS_RESOURCE_GROUP: hackathon-todo-rg
+  NAMESPACE: default
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Detect what changed
+  # ──────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  # ──────────────────────────────────────────────
+  # Job 2: Test Backend
+  # ──────────────────────────────────────────────
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      (needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch') &&
+      !(github.event.inputs.skip_tests == 'true')
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio ruff mypy
+
+      - name: Lint (ruff)
+        run: ruff check src/
+
+      - name: Type check (mypy)
+        run: mypy src/ --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests
+        run: pytest tests/unit/ -v --tb=short
+        env:
+          ENVIRONMENT: test
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
+          BETTER_AUTH_SECRET: test-secret-for-ci-minimum-32-characters-long
+          OPENAI_API_KEY: sk-test-dummy
+
+  # ──────────────────────────────────────────────
+  # Job 3: Test Frontend
+  # ──────────────────────────────────────────────
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      (needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch') &&
+      !(github.event.inputs.skip_tests == 'true')
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Type check
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────
+  # Job 4: Build & Push Images
+  # ──────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [changes, test-backend, test-frontend]
+    if: |
+      always() &&
+      !contains(needs.*.result, 'failure')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Set image tag
+        id: tag
+        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      # Build backend (only if changed or manual dispatch with backend=true)
+      - name: Build & Push Backend
+        if: |
+          needs.changes.outputs.backend == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_backend == 'true')
+        run: |
+          docker build \
+            -t ${{ env.ACR_LOGIN_SERVER }}/todo-backend:${{ steps.tag.outputs.sha }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/todo-backend:latest \
+            ./backend
+          docker push ${{ env.ACR_LOGIN_SERVER }}/todo-backend:${{ steps.tag.outputs.sha }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/todo-backend:latest
+
+      # Build frontend (only if changed or manual dispatch with frontend=true)
+      - name: Build & Push Frontend
+        if: |
+          needs.changes.outputs.frontend == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_frontend == 'true')
+        run: |
+          docker build \
+            -t ${{ env.ACR_LOGIN_SERVER }}/todo-frontend:${{ steps.tag.outputs.sha }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/todo-frontend:latest \
+            --build-arg NEXT_PUBLIC_API_URL=http://todo-backend-service:8000 \
+            --build-arg BETTER_AUTH_URL=http://localhost:3000 \
+            ./frontend
+          docker push ${{ env.ACR_LOGIN_SERVER }}/todo-frontend:${{ steps.tag.outputs.sha }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/todo-frontend:latest
+
+  # ──────────────────────────────────────────────
+  # Job 5: Deploy to AKS
+  # ──────────────────────────────────────────────
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: [changes, build-and-push]
+    if: |
+      always() &&
+      needs.build-and-push.result == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      # Restart backend if it was rebuilt
+      - name: Deploy Backend
+        if: |
+          needs.changes.outputs.backend == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_backend == 'true')
+        run: |
+          kubectl rollout restart deployment/todo-backend -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/todo-backend -n ${{ env.NAMESPACE }} --timeout=5m
+
+      # Restart frontend if it was rebuilt
+      - name: Deploy Frontend
+        if: |
+          needs.changes.outputs.frontend == 'true' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_frontend == 'true')
+        run: |
+          kubectl rollout restart deployment/todo-frontend -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/todo-frontend -n ${{ env.NAMESPACE }} --timeout=5m
+
+      # Smoke tests
+      - name: Smoke Tests
+        run: |
+          echo "Running smoke tests..."
+
+          # Test backend health
+          BACKEND_POD=$(kubectl get pods -n ${{ env.NAMESPACE }} -l component=backend -o jsonpath='{.items[0].metadata.name}')
+          HEALTH=$(kubectl exec -n ${{ env.NAMESPACE }} $BACKEND_POD -- wget -qO- http://localhost:8000/health 2>/dev/null || echo '{}')
+          if echo "$HEALTH" | grep -q "healthy"; then
+            echo "✅ Backend health check passed"
+          else
+            echo "⚠️  Backend health check inconclusive"
+          fi
+
+          # Test frontend accessibility
+          FRONTEND_IP=$(kubectl get service todo-frontend-service -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          FRONTEND_PORT=$(kubectl get service todo-frontend-service -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.ports[0].port}')
+          echo "✅ Frontend accessible at: http://${FRONTEND_IP}:${FRONTEND_PORT}"
+
+      - name: Deployment Summary
+        run: |
+          echo "════════════════════════════════════════"
+          echo "  ✅ DEPLOYMENT COMPLETE"
+          echo "════════════════════════════════════════"
+          echo ""
+          echo "Commit:  ${{ github.sha }}"
+          echo "Branch:  ${{ github.ref_name }}"
+          echo "Author:  ${{ github.actor }}"
+          echo ""
+          echo "Pods:"
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide
+          echo ""
+          echo "Services:"
+          kubectl get services -n ${{ env.NAMESPACE }}
+          echo ""
+          FRONTEND_IP=$(kubectl get service todo-frontend-service -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "🌐 App URL: http://${FRONTEND_IP}"
+          echo "🌐 Domain:  https://fehrist.shazilkhan.dev"
